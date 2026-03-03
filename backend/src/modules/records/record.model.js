@@ -1,0 +1,18 @@
+const mongoose = require('mongoose');
+
+const healthRecordSchema = new mongoose.Schema(
+    {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        title: { type: String, required: [true, 'Record title is required'], trim: true },
+        description: { type: String },
+        fileUrl: { type: String },
+        fileType: { type: String },
+        prescriptions: [{ type: String }],
+        diagnosisHistory: [
+            { date: { type: Date, default: Date.now }, diagnosis: { type: String }, doctor: { type: String } },
+        ],
+    },
+    { timestamps: true }
+);
+
+module.exports = mongoose.model('HealthRecord', healthRecordSchema);
