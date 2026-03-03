@@ -101,19 +101,6 @@ backend/src/
 | Dev 3 | `queue` | Token issuance, Socket.io real-time updates, doctor call-next |
 | Dev 4 | `records` | File upload (PDF/images), EHR CRUD, diagnosis history |
 
----
-
-## 🗓 10-Day Execution Plan
-
-| Days | Goal |
-|---|---|
-| **Day 1–2** | Repo setup, Auth system, DB connection, module skeletons |
-| **Day 3–4** | Each dev implements their core module |
-| **Day 5–6** | Cross-module integration (AI → Queue → Records → Medication) |
-| **Day 7** | Cron reminders + Socket.io live updates |
-| **Day 8** | UI polish, dashboard, severity color coding |
-| **Day 9** | Testing, edge cases, demo data |
-| **Day 10** | Demo prep, fake users, preloaded DB |
 
 ---
 
