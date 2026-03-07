@@ -186,3 +186,58 @@ describe('GET /api/auth/me', () => {
         expect(res.body.success).toBe(false);
     });
 });
+
+// ─── Role-Based Registration ─────────────────────────────────────────────────
+describe('Role-based registration', () => {
+    it('should register a patient', async () => {
+        const res = await request(app).post('/api/auth/register').send({
+            name: 'Patient A', email: 'patient2@test.com', password: 'test1234', role: 'patient',
+        });
+        expect(res.statusCode).toBe(201);
+        expect(res.body.data.user.role).toBe('patient');
+    });
+
+    it('should register a doctor', async () => {
+        const res = await request(app).post('/api/auth/register').send({
+            name: 'Dr. Smith', email: 'doctor@test.com', password: 'test1234', role: 'doctor',
+        });
+        expect(res.statusCode).toBe(201);
+        expect(res.body.data.user.role).toBe('doctor');
+    });
+
+    it('should register a hospital', async () => {
+        const res = await request(app).post('/api/auth/register').send({
+            name: 'City Hospital', email: 'hospital@test.com', password: 'test1234', role: 'hospital',
+        });
+        expect(res.statusCode).toBe(201);
+        expect(res.body.data.user.role).toBe('hospital');
+    });
+
+    it('should reject an invalid role', async () => {
+        const res = await request(app).post('/api/auth/register').send({
+            name: 'Bad Role', email: 'bad@test.com', password: 'test1234', role: 'superuser',
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    it('doctor /me should return role doctor', async () => {
+        const reg = await request(app).post('/api/auth/register').send({
+            name: 'Dr. House', email: 'drhouse@test.com', password: 'test1234', role: 'doctor',
+        });
+        const token = reg.body.data.token;
+        const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+        expect(me.statusCode).toBe(200);
+        expect(me.body.data.role).toBe('doctor');
+    });
+
+    it('hospital /me should return role hospital', async () => {
+        const reg = await request(app).post('/api/auth/register').send({
+            name: 'Apollo Hospital', email: 'apollo@test.com', password: 'test1234', role: 'hospital',
+        });
+        const token = reg.body.data.token;
+        const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+        expect(me.statusCode).toBe(200);
+        expect(me.body.data.role).toBe('hospital');
+    });
+});

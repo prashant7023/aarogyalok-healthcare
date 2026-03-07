@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { createRecord, getRecords, getRecord, deleteRecord } = require('./record.controller');
-const { protect } = require('../../shared/middleware/auth.middleware');
+const { protect, restrict } = require('../../shared/middleware/auth.middleware');
 const multer = require('multer');
 const path = require('path');
 
@@ -22,7 +22,9 @@ const upload = multer({
 });
 
 const router = Router();
-router.use(protect);
+
+// All records routes: protected + doctor or hospital only
+router.use(protect, restrict('doctor', 'hospital', 'admin'));
 
 router.post('/upload', upload.single('file'), createRecord);
 router.get('/', getRecords);
