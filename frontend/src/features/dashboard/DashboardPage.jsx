@@ -3,10 +3,10 @@ import useAuthStore from '../auth/authStore';
 import { Activity, Pill, Users, FileText, User as UserIcon, ArrowRight } from 'lucide-react';
 
 const FEATURE_CARDS = [
-    { to: '/symptom', icon: Activity, title: 'AI Symptom Checker', desc: 'Describe symptoms and get instant AI-powered analysis with severity classification.', color: '#dbeafe', stroke: '#2563eb', roles: ['patient'] },
-    { to: '/medication', icon: Pill, title: 'Medication Reminder', desc: 'Never miss a dose. Track your medication schedule and adherence history.', color: '#d1fae5', stroke: '#059669', roles: ['patient'] },
-    { to: '/queue', icon: Users, title: 'Queue Management', desc: 'Real-time queue tracking with live token numbers and estimated wait times.', color: '#fef3c7', stroke: '#d97706', roles: ['doctor', 'admin'] },
-    { to: '/records', icon: FileText, title: 'Health Records', desc: 'Your complete digital health history — diagnoses, prescriptions, lab reports.', color: '#fce7f3', stroke: '#db2777', roles: ['doctor', 'admin'] },
+    { to: '/symptom', icon: Activity, title: 'AI Symptom Checker', desc: 'Describe symptoms and get instant AI-powered analysis with severity classification.', color: '#dbeafe', stroke: '#2563eb', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/medication', icon: Pill, title: 'Medication Reminder', desc: 'Never miss a dose. Track your medication schedule and adherence history.', color: '#d1fae5', stroke: '#059669', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/queue', icon: Users, title: 'Queue Management', desc: 'Real-time queue tracking with live token numbers and estimated wait times.', color: '#fef3c7', stroke: '#d97706', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/records', icon: FileText, title: 'Health Records', desc: 'Your complete digital health history — diagnoses, prescriptions, lab reports.', color: '#fce7f3', stroke: '#db2777', roles: ['patient', 'doctor', 'admin'] },
 ];
 
 const STATS = [

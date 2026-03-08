@@ -4,10 +4,10 @@ import { Activity, Pill, Users, FileText, LayoutDashboard, LogOut, ChevronLeft, 
 
 const NAV = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/symptom', icon: Activity, label: 'Symptom Checker', section: 'PATIENT', roles: ['patient'] },
-    { to: '/medication', icon: Pill, label: 'Medication', section: 'PATIENT', roles: ['patient'] },
-    { to: '/queue', icon: Users, label: 'Queue', section: 'CLINICAL', roles: ['doctor', 'admin'] },
-    { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['doctor', 'admin'] },
+    { to: '/symptom', icon: Activity, label: 'Symptom Checker', section: 'PATIENT', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/medication', icon: Pill, label: 'Medication', section: 'PATIENT', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/queue', icon: Users, label: 'Queue', section: 'CLINICAL', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['patient', 'doctor', 'admin'] },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen, isMobile }) {
