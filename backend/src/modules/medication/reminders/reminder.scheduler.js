@@ -29,11 +29,20 @@ const SCHEDULE_DAYS = 7;
 
 const buildFireTimes = (scheduleTimes, startDate, endDate) => {
     const now = new Date();
+    // 2-minute grace: include reminders that fired up to 2 min ago
+    // so a medication added at exactly 15:47:30 still catches the 15:47 slot
+    const gracedNow = new Date(now.getTime() - 2 * 60 * 1000);
+
     const capEnd = new Date(now);
     capEnd.setDate(capEnd.getDate() + SCHEDULE_DAYS);
 
-    const windowEnd = new Date(Math.min(new Date(endDate).getTime(), capEnd.getTime()));
-    const cursor = new Date(Math.max(new Date(startDate).getTime(), now.getTime()));
+    // Default endDate to 7 days from startDate when not provided
+    const resolvedEnd = endDate
+        ? new Date(endDate)
+        : new Date(new Date(startDate).setDate(new Date(startDate).getDate() + SCHEDULE_DAYS));
+    const windowEnd = new Date(Math.min(resolvedEnd.getTime(), capEnd.getTime()));
+
+    const cursor = new Date(Math.max(new Date(startDate).getTime(), gracedNow.getTime()));
     cursor.setHours(0, 0, 0, 0);
 
     const fireTimes = [];
@@ -42,7 +51,8 @@ const buildFireTimes = (scheduleTimes, startDate, endDate) => {
             const [h, m] = t.split(':').map(Number);
             const dt = new Date(cursor);
             dt.setHours(h, m, 0, 0);
-            if (dt > now) fireTimes.push(dt);
+            // Include if in the future OR within the 2-min grace window
+            if (dt >= gracedNow) fireTimes.push(dt);
         }
         cursor.setDate(cursor.getDate() + 1);
     }
@@ -92,6 +102,9 @@ const scheduleReminders = async (medication) => {
     const redis = getRedisClient();
     if (!redis) return;
     await pushToRedis(redis, medication);
+    // Defer by one event-loop tick so fireDueReminders (const) is already initialised,
+    // then immediately fire anything due — catches reminders added right at fire time
+    setImmediate(() => fireDueReminders().catch((e) => console.error('Immediate fire error:', e.message)));
 };
 
 const rescheduleReminders = async (medication) => {
