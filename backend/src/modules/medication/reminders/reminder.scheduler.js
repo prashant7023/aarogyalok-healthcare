@@ -18,6 +18,8 @@
 const cron = require('node-cron');
 const { getRedisClient } = require('../../../config/redis');
 const ReminderLog = require('../models/reminderLog.model');
+const User = require('../../auth/auth.model');
+const { sendPushToTokens } = require('../../../config/firebase.admin');
 const Medication = require('../models/medication.model');
 
 const REMINDER_KEY = 'med:reminders';
@@ -155,14 +157,40 @@ const fireDueReminders = async () => {
                 notifiedVia: _io ? 'socket' : 'none',
             });
 
+            // 1. Socket.IO — real-time in-app toast
             if (_io) {
                 _io.to(`user-${data.userId}`).emit('medication-reminder', {
                     reminderId: log._id,
                     medicineName: data.medicineName,
                     dosage: data.dosage,
                     scheduledAt: data.scheduledAt,
-                    message: `Time to take ${data.medicineName} (${data.dosage})`,
+                    message: `Time to take ${data.medicineName}`,
                 });
+            }
+
+            // 2. FCM push — OS-level notification (works when tab is closed)
+            try {
+                const user = await User.findById(data.userId).select('fcmTokens');
+                if (user?.fcmTokens?.length) {
+                    await sendPushToTokens(
+                        user.fcmTokens,
+                        {
+                            title: '💊 Medication Reminder',
+                            body: data.dosage
+                                ? `Time to take ${data.medicineName} — ${data.dosage}`
+                                : `Time to take ${data.medicineName}`,
+                            data: {
+                                reminderId: String(log._id),
+                                medicineName: data.medicineName,
+                                dosage: data.dosage || '',
+                                scheduledAt: data.scheduledAt,
+                            },
+                        },
+                        user
+                    );
+                }
+            } catch (pushErr) {
+                console.warn('[FCM] Push failed (non-fatal):', pushErr.message);
             }
 
             console.log(`⏰ Fired: "${data.medicineName}" → user ${data.userId}`);

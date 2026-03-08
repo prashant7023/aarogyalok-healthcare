@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema(
         password: { type: String, required: [true, 'Password is required'], minlength: 6 },
         role: { type: String, enum: ['patient', 'doctor', 'hospital', 'admin'], default: 'patient' },
         phone: { type: String, trim: true },
+        // FCM tokens — array so one user can have web + mobile + multiple devices
+        fcmTokens: { type: [String], default: [] },
     },
     { timestamps: true }
 );

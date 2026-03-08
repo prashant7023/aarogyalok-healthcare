@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, User, ChevronDown, LogOut, Shield, Mail } from 'lucide-react';
 import Sidebar from './Sidebar';
 import useAuthStore from '../../features/auth/authStore';
+import { useFCMToken } from '../../hooks/useFCMToken';
 
 function useIsMobile() {
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -123,6 +124,9 @@ export default function AppLayout() {
     const profileRef = useRef(null);
     const { user } = useAuthStore();
     const location = useLocation();
+
+    // Register FCM push notification token with backend
+    useFCMToken();
 
     const pageTitle = PAGE_TITLES[location.pathname] || 'AarogyaLok';
 
