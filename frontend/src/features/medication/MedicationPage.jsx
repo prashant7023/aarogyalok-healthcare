@@ -107,7 +107,7 @@ export default function MedicationPage() {
     return (
         <div className="fade-in">
             {/* Compact page header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>Medication Reminder</h1>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     {toasts.length > 0 && (
@@ -131,8 +131,8 @@ export default function MedicationPage() {
             {/* Adherence ring */}
             <AdherenceStats adherence={adherence} />
 
-            {/* Compact 4-stat row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
+            {/* Compact auto-fitting stat row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
                 {[
                     { icon: Pill, label: 'Active Meds', val: counts.total, bg: '#eff6ff', col: '#2563eb' },
                     { icon: Check, label: 'Taken Today', val: counts.taken, bg: '#d1fae5', col: '#10b981' },
@@ -167,7 +167,7 @@ export default function MedicationPage() {
             />
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: '0', marginBottom: '0.85rem', background: '#f1f5f9', borderRadius: '8px', padding: '3px', width: 'fit-content' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.85rem', background: '#f1f5f9', borderRadius: '8px', padding: '4px', width: 'fit-content', maxWidth: '100%' }}>
                 {[
                     { key: 'today', label: "Today's Reminders", icon: Calendar },
                     { key: 'active', label: 'Active Medications', icon: Pill },

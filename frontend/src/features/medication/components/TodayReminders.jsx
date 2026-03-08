@@ -43,7 +43,7 @@ export default function TodayReminders({ reminders, onRespond, onRefresh }) {
 
                     return (
                         <div key={r._id} style={{
-                            display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
                             padding: '0.65rem 1rem',
                             borderBottom: idx < reminders.length - 1 ? '1px solid #f1f5f9' : 'none',
                             transition: 'background .1s',
