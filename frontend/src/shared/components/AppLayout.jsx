@@ -168,7 +168,7 @@ export default function AppLayout() {
                 {isMobile && (
                     <div style={{
                         position: 'sticky', top: 0, zIndex: 50,
-                        background: '#0f172a', padding: '0.85rem 1rem',
+                        background: '#0f172a', padding: '0.85rem 1.25rem',
                         display: 'flex', alignItems: 'center', gap: '0.75rem',
                         borderBottom: '1px solid rgba(255,255,255,.08)',
                     }}>
@@ -182,6 +182,45 @@ export default function AppLayout() {
                             <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2 }} />
                         </button>
                         <span style={{ color: '#fff', fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.5px', flex: 1 }}>AarogyaLok</span>
+
+                        {/* Mobile right controls (Notifications + Profile) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                            {/* Notification bell */}
+                            <button style={{
+                                position: 'relative', background: 'none', border: 'none',
+                                cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <Bell size={20} />
+                                <span style={{
+                                    position: 'absolute', top: 0, right: 0,
+                                    width: 8, height: 8, borderRadius: '50%',
+                                    background: '#ef4444', border: '2px solid #0f172a',
+                                }} />
+                            </button>
+
+                            {/* Profile chip + dropdown */}
+                            <div ref={profileRef} style={{ position: 'relative', display: 'flex' }}>
+                                <button
+                                    onClick={() => setProfileOpen((v) => !v)}
+                                    style={{
+                                        width: 28, height: 28, borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.8rem', fontWeight: 800, color: '#fff',
+                                        border: 'none', cursor: 'pointer', padding: 0,
+                                        boxShadow: profileOpen ? '0 0 0 2px rgba(255,255,255,0.2)' : 'none',
+                                    }}
+                                >
+                                    {user?.name?.[0]?.toUpperCase() || <User size={14} />}
+                                </button>
+
+                                {/* Dropdown */}
+                                {profileOpen && (
+                                    <ProfileDropdown user={user} onClose={() => setProfileOpen(false)} />
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 
