@@ -18,6 +18,8 @@
 const cron = require('node-cron');
 const { getRedisClient } = require('../../../config/redis');
 const ReminderLog = require('../models/reminderLog.model');
+const User = require('../../auth/auth.model');
+const { sendPushToTokens } = require('../../../config/firebase.admin');
 const Medication = require('../models/medication.model');
 
 const REMINDER_KEY = 'med:reminders';
@@ -29,11 +31,20 @@ const SCHEDULE_DAYS = 7;
 
 const buildFireTimes = (scheduleTimes, startDate, endDate) => {
     const now = new Date();
+    // 2-minute grace: include reminders that fired up to 2 min ago
+    // so a medication added at exactly 15:47:30 still catches the 15:47 slot
+    const gracedNow = new Date(now.getTime() - 2 * 60 * 1000);
+
     const capEnd = new Date(now);
     capEnd.setDate(capEnd.getDate() + SCHEDULE_DAYS);
 
-    const windowEnd = new Date(Math.min(new Date(endDate).getTime(), capEnd.getTime()));
-    const cursor = new Date(Math.max(new Date(startDate).getTime(), now.getTime()));
+    // Default endDate to 7 days from startDate when not provided
+    const resolvedEnd = endDate
+        ? new Date(endDate)
+        : new Date(new Date(startDate).setDate(new Date(startDate).getDate() + SCHEDULE_DAYS));
+    const windowEnd = new Date(Math.min(resolvedEnd.getTime(), capEnd.getTime()));
+
+    const cursor = new Date(Math.max(new Date(startDate).getTime(), gracedNow.getTime()));
     cursor.setHours(0, 0, 0, 0);
 
     const fireTimes = [];
@@ -42,7 +53,8 @@ const buildFireTimes = (scheduleTimes, startDate, endDate) => {
             const [h, m] = t.split(':').map(Number);
             const dt = new Date(cursor);
             dt.setHours(h, m, 0, 0);
-            if (dt > now) fireTimes.push(dt);
+            // Include if in the future OR within the 2-min grace window
+            if (dt >= gracedNow) fireTimes.push(dt);
         }
         cursor.setDate(cursor.getDate() + 1);
     }
@@ -92,6 +104,9 @@ const scheduleReminders = async (medication) => {
     const redis = getRedisClient();
     if (!redis) return;
     await pushToRedis(redis, medication);
+    // Defer by one event-loop tick so fireDueReminders (const) is already initialised,
+    // then immediately fire anything due — catches reminders added right at fire time
+    setImmediate(() => fireDueReminders().catch((e) => console.error('Immediate fire error:', e.message)));
 };
 
 const rescheduleReminders = async (medication) => {
@@ -142,14 +157,40 @@ const fireDueReminders = async () => {
                 notifiedVia: _io ? 'socket' : 'none',
             });
 
+            // 1. Socket.IO — real-time in-app toast
             if (_io) {
                 _io.to(`user-${data.userId}`).emit('medication-reminder', {
                     reminderId: log._id,
                     medicineName: data.medicineName,
                     dosage: data.dosage,
                     scheduledAt: data.scheduledAt,
-                    message: `Time to take ${data.medicineName} (${data.dosage})`,
+                    message: `Time to take ${data.medicineName}`,
                 });
+            }
+
+            // 2. FCM push — OS-level notification (works when tab is closed)
+            try {
+                const user = await User.findById(data.userId).select('fcmTokens');
+                if (user?.fcmTokens?.length) {
+                    await sendPushToTokens(
+                        user.fcmTokens,
+                        {
+                            title: '💊 Medication Reminder',
+                            body: data.dosage
+                                ? `Time to take ${data.medicineName} — ${data.dosage}`
+                                : `Time to take ${data.medicineName}`,
+                            data: {
+                                reminderId: String(log._id),
+                                medicineName: data.medicineName,
+                                dosage: data.dosage || '',
+                                scheduledAt: data.scheduledAt,
+                            },
+                        },
+                        user
+                    );
+                }
+            } catch (pushErr) {
+                console.warn('[FCM] Push failed (non-fatal):', pushErr.message);
             }
 
             console.log(`⏰ Fired: "${data.medicineName}" → user ${data.userId}`);

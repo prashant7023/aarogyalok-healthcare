@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import useAuthStore from '../../features/auth/authStore';
-import { Activity, Pill, Users, FileText, LayoutDashboard, LogOut, ChevronLeft, ChevronRight, User, X } from 'lucide-react';
+import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 const NAV = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'doctor', 'admin'] },
@@ -11,13 +11,9 @@ const NAV = [
 ];
 
 export default function Sidebar({ isOpen, setIsOpen, isMobile }) {
-    const navigate = useNavigate();
-    const { user, logout } = useAuthStore();
+    const { user } = useAuthStore();
     const role = user?.role || 'patient';
 
-    const handleLogout = () => { logout(); navigate('/login'); };
-
-    // On mobile, close sidebar after navigation
     const handleNavClick = () => { if (isMobile) setIsOpen(false); };
 
     const visibleNav = NAV.filter((n) => n.roles.includes(role));
@@ -80,28 +76,7 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile }) {
                     </div>
                 ))}
             </div>
-
-            {/* Footer: user info + logout */}
-            <div className="sidebar-footer">
-                <div className="sidebar-user">
-                    <div className="sidebar-avatar">
-                        {user?.name?.[0]?.toUpperCase() || <User size={16} />}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <span className="sidebar-user-name" title={user?.name}>{user?.name || 'User'}</span>
-                        <span className="sidebar-user-role">{user?.role || 'patient'}</span>
-                    </div>
-                </div>
-                <button
-                    className="sidebar-item"
-                    style={{ color: 'var(--danger)', marginTop: '0.25rem' }}
-                    onClick={handleLogout}
-                    title={!isOpen && !isMobile ? 'Logout' : ''}
-                >
-                    <div className="sidebar-item-icon" style={{ color: 'var(--danger)' }}><LogOut size={18} /></div>
-                    <span>Logout</span>
-                </button>
-            </div>
+            {/* Footer removed — profile & logout moved to header */}
         </aside>
     );
 }

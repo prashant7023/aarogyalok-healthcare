@@ -1,13 +1,9 @@
 /**
  * hooks/useMedicationSocket.js
  *
- * Self-contained Socket.IO hook for the medication feature.
- * - Connects to the backend with the JWT token from auth store
- * - Joins the user's personal room (server-side via JWT middleware)
- * - Listens for `medication-reminder` events and calls onReminder(data)
- * - Cleans up on unmount
- *
- * NOT imported anywhere in App.jsx / main.jsx — called only from MedicationPage.
+ * FIX: Uses a ref for `onReminder` so the socket listener always calls
+ * the latest version of the callback — avoids stale closure causing
+ * 2nd+ notifications to be silently dropped.
  */
 import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
@@ -19,10 +15,17 @@ export function useMedicationSocket({ onReminder }) {
     const token = useAuthStore((s) => s.token);
     const socketRef = useRef(null);
 
+    // ✅ FIX: Keep a ref that always points to the latest onReminder callback.
+    // The socket listener reads from the ref, so it never goes stale even when
+    // the parent re-renders and passes a new function reference.
+    const onReminderRef = useRef(onReminder);
+    useEffect(() => {
+        onReminderRef.current = onReminder;
+    }, [onReminder]);
+
     useEffect(() => {
         if (!token) return;
 
-        // Connect with JWT so server auto-joins us to `user-{userId}` room
         const socket = io(SOCKET_URL, {
             auth: { token },
             transports: ['websocket', 'polling'],
@@ -36,21 +39,21 @@ export function useMedicationSocket({ onReminder }) {
             console.log('[MedSocket] Connected:', socket.id);
         });
 
+        // Always reads the latest callback via ref — never stale
         socket.on('medication-reminder', (data) => {
             console.log('[MedSocket] Reminder received:', data);
-            if (onReminder) onReminder(data);
+            if (onReminderRef.current) onReminderRef.current(data);
         });
 
         socket.on('connect_error', (err) => {
             console.warn('[MedSocket] Connection error:', err.message);
         });
 
-        // Cleanup on unmount or token change
         return () => {
             socket.disconnect();
             socketRef.current = null;
         };
-    }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [token]);
 
     return socketRef;
 }

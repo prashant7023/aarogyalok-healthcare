@@ -1,79 +1,85 @@
 /**
- * components/TodayReminders.jsx
- * 
- * Shows today's scheduled reminder logs with taken/skipped action buttons.
- * Data comes from GET /api/medication/reminders/today via useMedications hook.
+ * components/TodayReminders.jsx — Compact table-style list
  */
 import { Check, X, Clock, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const STATUS = {
-    pending: { label: 'Pending', badge: 'badge badge-yellow', Icon: Clock, bgRow: '#fffbeb' },
-    taken: { label: 'Taken', badge: 'badge badge-green', Icon: CheckCircle2, bgRow: '#f0fdf4' },
-    skipped: { label: 'Skipped', badge: 'badge badge-gray', Icon: X, bgRow: '#f8fafc' },
-    missed: { label: 'Missed', badge: 'badge badge-red', Icon: AlertCircle, bgRow: '#fef2f2' },
+    pending: { label: 'Pending', cls: 'badge badge-yellow', Icon: Clock, dot: '#f59e0b' },
+    taken: { label: 'Taken', cls: 'badge badge-green', Icon: CheckCircle2, dot: '#10b981' },
+    skipped: { label: 'Skipped', cls: 'badge badge-gray', Icon: X, dot: '#94a3b8' },
+    missed: { label: 'Missed', cls: 'badge badge-red', Icon: AlertCircle, dot: '#ef4444' },
 };
 
 export default function TodayReminders({ reminders, onRespond, onRefresh }) {
     if (!reminders.length) {
         return (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                <Clock size={40} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <div style={{ fontWeight: 600, color: '#334155' }}>No reminders scheduled for today</div>
-                <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>Add a medication above to get started.</p>
+            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#94a3b8', background: '#fff', borderRadius: '10px', border: '1px dashed #e2e8f0' }}>
+                <Clock size={28} style={{ margin: '0 auto 0.5rem', opacity: 0.35 }} />
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#475569' }}>No reminders today</div>
+                <p style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>Add a medication to get started.</p>
             </div>
         );
     }
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h2 style={{ fontSize: '1.2rem' }}>Today's Schedule</h2>
-                <button onClick={onRefresh} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                    <RefreshCw size={14} /> Refresh
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    Today's Schedule
+                </span>
+                <button onClick={onRefresh} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', transition: 'color .15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#2563eb'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                >
+                    <RefreshCw size={13} /> Refresh
                 </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {reminders.map((r) => {
+            <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                {reminders.map((r, idx) => {
                     const s = STATUS[r.status] || STATUS.pending;
                     const StatusIcon = s.Icon;
                     const isPending = r.status === 'pending';
 
                     return (
                         <div key={r._id} style={{
-                            display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
-                            background: s.bgRow, padding: '1rem 1.25rem',
-                            borderRadius: '12px', border: '1px solid #e2e8f0',
-                            transition: 'all .15s',
-                        }}>
+                            display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            padding: '0.65rem 1rem',
+                            borderBottom: idx < reminders.length - 1 ? '1px solid #f1f5f9' : 'none',
+                            transition: 'background .1s',
+                        }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = ''}
+                        >
+                            {/* Status dot */}
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
+
                             {/* Time */}
-                            <div style={{ textAlign: 'center', minWidth: '52px', flexShrink: 0 }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>
-                                    {new Date(r.scheduledAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                </div>
-                            </div>
-
-                            {/* Info */}
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a', marginBottom: '2px' }}>{r.medicineName}</div>
-                                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{r.dosage}</div>
-                            </div>
-
-                            {/* Status badge */}
-                            <span className={s.badge} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                                <StatusIcon size={13} /> {s.label}
+                            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, minWidth: 52, flexShrink: 0 }}>
+                                {new Date(r.scheduledAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                             </span>
 
-                            {/* Action buttons — only for pending */}
+                            {/* Medicine name */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>{r.medicineName}</span>
+                                {r.dosage && <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginLeft: '0.4rem' }}>{r.dosage}</span>}
+                            </div>
+
+                            {/* Badge */}
+                            <span className={s.cls} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', flexShrink: 0 }}>
+                                <StatusIcon size={11} /> {s.label}
+                            </span>
+
+                            {/* Actions for pending */}
                             {isPending && (
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
                                     <button onClick={() => onRespond(r._id, 'taken')}
-                                        style={{ padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Check size={14} /> Taken
+                                        style={{ padding: '0.3rem 0.7rem', borderRadius: '6px', border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                        <Check size={12} /> Taken
                                     </button>
                                     <button onClick={() => onRespond(r._id, 'skipped')}
-                                        style={{ padding: '0.4rem 0.9rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <X size={14} /> Skip
+                                        style={{ padding: '0.3rem 0.7rem', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                        <X size={12} /> Skip
                                     </button>
                                 </div>
                             )}
