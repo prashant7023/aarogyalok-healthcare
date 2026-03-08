@@ -28,12 +28,13 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log('[SW] Background message received:', payload);
 
-    const { title, body, icon } = payload.notification || {};
     const data = payload.data || {};
+    const title = data.title || '💊 Medication Reminder';
+    const body = data.body || `Time to take ${data.medicineName || 'your medication'}`;
 
-    self.registration.showNotification(title || '💊 Medication Reminder', {
-        body: body || `Time to take ${data.medicineName || 'your medication'}`,
-        icon: icon || '/favicon.ico',
+    self.registration.showNotification(title, {
+        body,
+        icon: '/favicon.ico',
         badge: '/favicon.ico',
         tag: data.reminderId || 'med-reminder',
         requireInteraction: true, // stays visible until user interacts
@@ -41,7 +42,7 @@ messaging.onBackgroundMessage((payload) => {
             { action: 'taken', title: '✅ Taken' },
             { action: 'snooze', title: '⏰ Snooze 5 min' },
         ],
-        data: payload.data,
+        data: data,
     });
 });
 
