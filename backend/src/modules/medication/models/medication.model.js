@@ -4,10 +4,10 @@ const medicationSchema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         medicineName: { type: String, required: [true, 'Medicine name is required'], trim: true },
-        dosage: { type: String, required: [true, 'Dosage is required'] },
+        dosage: { type: String, default: '' },
         scheduleTimes: [{ type: String }],
         startDate: { type: Date, required: true },
-        endDate: { type: Date, required: true },
+        endDate: { type: Date },
         adherenceHistory: [{ date: { type: Date }, taken: { type: Boolean, default: false } }],
         isActive: { type: Boolean, default: true },
     },

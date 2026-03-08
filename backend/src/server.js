@@ -2,6 +2,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const app = require('./app');
 const connectDB = require('./config/db');
+const medicationModule = require('./modules/medication');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 5000;
@@ -16,6 +17,7 @@ const io = new Server(server, {
 
 app.set('io', io);
 
+// Original socket handler — queue room only
 io.on('connection', (socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);
 
@@ -27,6 +29,9 @@ io.on('connection', (socket) => {
         console.log(`❌ Client disconnected: ${socket.id}`);
     });
 });
+
+// Medication module handles its own Socket.IO setup + reminder scheduler
+medicationModule.init(io);
 
 server.listen(PORT, () => {
     console.log(`🚀 ArogyaLok server running on port ${PORT}`);
