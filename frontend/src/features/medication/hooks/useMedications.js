@@ -19,7 +19,10 @@ export function useMedications() {
         try {
             const r = await api.get('/medication');
             setMeds(r.data.data || []);
-        } catch {/* silent — keep empty */ }
+        } catch (e) {
+            console.error('[useMedications] fetchMeds failed:', e.message);
+            setError('Could not load medications. Check API URL.');
+        }
     }, []);
 
     // --- Fetch today's reminder logs ---
@@ -27,7 +30,9 @@ export function useMedications() {
         try {
             const r = await api.get('/medication/reminders/today');
             setTodayReminders(r.data.data || []);
-        } catch {/* silent */ }
+        } catch (e) {
+            console.error('[useMedications] fetchTodayReminders failed:', e.message);
+        }
     }, []);
 
     // --- Fetch 7-day adherence stats ---
@@ -35,7 +40,9 @@ export function useMedications() {
         try {
             const r = await api.get(`/medication/adherence?days=${days}`);
             setAdherence(r.data.data);
-        } catch {/* silent */ }
+        } catch (e) {
+            console.error('[useMedications] fetchAdherence failed:', e.message);
+        }
     }, []);
 
     // Initial load

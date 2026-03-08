@@ -31,6 +31,9 @@ export function useMedicationSocket({ onReminder }) {
             transports: ['websocket', 'polling'],
             reconnectionAttempts: 5,
             reconnectionDelay: 2000,
+            extraHeaders: {
+                'ngrok-skip-browser-warning': 'true',
+            },
         });
 
         socketRef.current = socket;
