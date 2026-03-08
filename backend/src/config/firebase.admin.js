@@ -71,20 +71,12 @@ async function sendPushToTokens(tokens, { title, body, data = {} }, userDoc = nu
     if (!msg || !tokens?.length) return;
 
     const message = {
-        notification: { title, body },
-        data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
-        webpush: {
-            notification: {
-                title, body,
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
-                requireInteraction: true,
-                actions: [
-                    { action: 'taken', title: '✅ Taken' },
-                    { action: 'snooze', title: '⏰ Snooze 5 min' },
-                ],
-            },
-            fcmOptions: { link: '/medication' },
+        // Root notification removed: prevents FCM Web SDK from duplicating the notification.
+        // We pass title and body inside data so our service worker can render it manually.
+        data: {
+            title: String(title),
+            body: String(body),
+            ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
         },
         android: {
             notification: { title, body, icon: 'ic_launcher', sound: 'default', priority: 'high' },
