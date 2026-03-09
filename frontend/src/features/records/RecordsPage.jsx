@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../../shared/utils/api';
-import { FileText, Image as ImageIcon, File, UploadCloud, Trash2, ExternalLink, Activity, X } from 'lucide-react';
-
-const MOCK_RECORDS = [
-    { _id: '1', title: 'Blood Test Report', description: 'CBC with differential — all values normal', fileType: 'pdf', createdAt: new Date('2025-03-01'), diagnosisHistory: [{ diagnosis: 'Normal CBC', doctor: 'Dr. Sharma' }] },
-    { _id: '2', title: 'Chest X-Ray', description: 'No active pulmonary pathology observed', fileType: 'jpg', createdAt: new Date('2025-02-15'), diagnosisHistory: [{ diagnosis: 'Clear Lungs', doctor: 'Dr. Patel' }] },
-    { _id: '3', title: 'Consultation Note', description: 'Viral Fever — prescribed Paracetamol 500mg', fileType: 'pdf', createdAt: new Date('2025-01-20'), diagnosisHistory: [{ diagnosis: 'Viral Infection', doctor: 'Dr. Rao' }] },
-];
+import useAuthStore from '../auth/authStore';
+import { FileText, Image as ImageIcon, File, UploadCloud, Trash2, ExternalLink, Activity, X, User } from 'lucide-react';
 
 export default function RecordsPage() {
-    const [records, setRecords] = useState(MOCK_RECORDS);
+    const { user } = useAuthStore();
+    const isDoctor = ['doctor', 'hospital', 'admin'].includes(user?.role);
+
+    const [records, setRecords] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({ title: '', description: '' });
     const [file, setFile] = useState(null);
@@ -17,7 +16,10 @@ export default function RecordsPage() {
     const fileRef = useRef();
 
     useEffect(() => {
-        api.get('/records').then(r => { if (r.data.data?.length) setRecords(r.data.data); }).catch(() => { });
+        api.get('/records')
+            .then(r => setRecords(r.data.data || []))
+            .catch(() => setRecords([]))
+            .finally(() => setLoading(false));
     }, []);
 
     const handleUpload = async (e) => {
@@ -48,20 +50,30 @@ export default function RecordsPage() {
         return <File size={24} color="#64748b" />;
     };
 
+    // When fetched by a doctor, userId is populated as { _id, name, email }
+    const getPatientName = (rec) =>
+        rec.userId && typeof rec.userId === 'object' ? rec.userId.name : null;
+
     return (
         <div className="fade-in">
             <div className="page-header" style={{ alignItems: 'center' }}>
                 <div>
                     <h1>Clinical Records</h1>
-                    <p>Digitized history, lab reports, and prescriptions.</p>
+                    <p>
+                        {isDoctor
+                            ? 'All patient records across the system.'
+                            : 'Your digitized health history, lab reports, and prescriptions.'}
+                    </p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowForm(v => !v)}>
-                    {showForm ? <><X size={18} /> Cancel</> : <><UploadCloud size={18} /> Upload Record</>}
-                </button>
+                {!isDoctor && (
+                    <button className="btn btn-primary" onClick={() => setShowForm(v => !v)}>
+                        {showForm ? <><X size={18} /> Cancel</> : <><UploadCloud size={18} /> Upload Record</>}
+                    </button>
+                )}
             </div>
 
-            {/* Upload form */}
-            {showForm && (
+            {/* Upload form — patients only */}
+            {!isDoctor && showForm && (
                 <div className="card fade-in" style={{ marginBottom: '2rem', border: 'none', background: '#eff6ff', position: 'relative' }}>
                     <h3 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', color: '#1e3a8a' }}>Upload New Document</h3>
                     <form onSubmit={handleUpload}>
@@ -95,59 +107,78 @@ export default function RecordsPage() {
                 </div>
             )}
 
-            {/* Grid of cards instead of plain table */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-                {records.map(rec => (
-                    <div key={rec._id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                            <div style={{ background: '#f8fafc', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                {getIcon(rec.fileType)}
-                            </div>
-                            <div>
-                                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem', color: '#0f172a' }}>{rec.title}</h3>
-                                <span style={{ fontSize: '0.8rem', color: '#64748b', background: '#f1f5f9', padding: '0.1rem 0.5rem', borderRadius: '4px' }}>
-                                    {new Date(rec.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
-                                </span>
-                            </div>
-                        </div>
+            {/* Loading state */}
+            {loading && (
+                <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#64748b' }}>Loading records…</div>
+            )}
 
-                        <p style={{ fontSize: '0.9rem', color: '#475569', lineHeight: 1.5, flex: 1, marginBottom: '1.5rem' }}>
-                            {rec.description || 'No description provided.'}
-                        </p>
+            {/* Grid of record cards */}
+            {!loading && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                    {records.map(rec => {
+                        const patientName = getPatientName(rec);
+                        return (
+                            <div key={rec._id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+                                {/* Patient badge — visible to doctors only */}
+                                {isDoctor && patientName && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', background: '#eff6ff', borderRadius: '8px', padding: '0.4rem 0.75rem', width: 'fit-content' }}>
+                                        <User size={13} color="#3b82f6" />
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1d4ed8' }}>{patientName}</span>
+                                    </div>
+                                )}
 
-                        {rec.diagnosisHistory?.length > 0 && (
-                            <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem', letterSpacing: '.05em' }}>Diagnoses attached</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                    {rec.diagnosisHistory.map((d, i) => (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#0f172a' }}>
-                                            <Activity size={14} color="#3b82f6" /> {d.diagnosis} <span style={{ color: '#94a3b8' }}>({d.doctor})</span>
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                    <div style={{ background: '#f8fafc', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        {getIcon(rec.fileType)}
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem', color: '#0f172a' }}>{rec.title}</h3>
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b', background: '#f1f5f9', padding: '0.1rem 0.5rem', borderRadius: '4px' }}>
+                                            {new Date(rec.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <p style={{ fontSize: '0.9rem', color: '#475569', lineHeight: 1.5, flex: 1, marginBottom: '1.5rem' }}>
+                                    {rec.description || 'No description provided.'}
+                                </p>
+
+                                {rec.diagnosisHistory?.length > 0 && (
+                                    <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem', letterSpacing: '.05em' }}>Diagnoses attached</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            {rec.diagnosisHistory.map((d, i) => (
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#0f172a' }}>
+                                                    <Activity size={14} color="#3b82f6" /> {d.diagnosis} <span style={{ color: '#94a3b8' }}>({d.doctor})</span>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                    {rec.fileUrl && (
+                                        <a href={`${(import.meta.env.VITE_API_URL || 'http://localhost:5001/api').replace('/api', '')}${rec.fileUrl}`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ flex: 1, background: '#f1f5f9', color: '#0f172a' }}>
+                                            <ExternalLink size={16} /> View
+                                        </a>
+                                    )}
+                                    <button className="btn btn-ghost" onClick={() => handleDelete(rec._id)} style={{ color: '#ef4444' }}>
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
-                        )}
+                        );
+                    })}
 
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                            {rec.fileUrl && (
-                                <a href={`http://localhost:5000${rec.fileUrl}`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ flex: 1, background: '#f1f5f9', color: '#0f172a' }}>
-                                    <ExternalLink size={16} /> View
-                                </a>
-                            )}
-                            <button className="btn btn-ghost" onClick={() => handleDelete(rec._id)} style={{ color: '#ef4444' }}>
-                                <Trash2 size={16} />
-                            </button>
+                    {records.length === 0 && (
+                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem 1rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                            <FileText size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>No records found</div>
+                            <p>{isDoctor ? 'No patient records exist yet.' : 'Upload a PDF or image to get started.'}</p>
                         </div>
-                    </div>
-                ))}
-                {records.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem 1rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                        <FileText size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>No records found</div>
-                        <p>Upload a PDF or image to get started.</p>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
