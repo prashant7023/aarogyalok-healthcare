@@ -120,6 +120,7 @@ function ProfileDropdown({ user, onClose }) {
 export default function AppLayout() {
     const isMobile = useIsMobile();
     const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
+    const [sidebarWidth, setSidebarWidth] = useState(260);
     const [profileOpen, setProfileOpen] = useState(false);
     const profileRef = useRef(null);
     const { user } = useAuthStore();
@@ -148,7 +149,10 @@ export default function AppLayout() {
     }, [profileOpen]);
 
     return (
-        <div className={`app-shell ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+        <div
+            className={`app-shell ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}
+            style={!isMobile && isSidebarOpen ? { '--sidebar-w': `${sidebarWidth}px` } : undefined}
+        >
             {/* Mobile backdrop */}
             {isMobile && isSidebarOpen && (
                 <div
@@ -161,7 +165,13 @@ export default function AppLayout() {
                 />
             )}
 
-            <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} isMobile={isMobile} />
+            <Sidebar
+                isOpen={isSidebarOpen}
+                setIsOpen={setIsSidebarOpen}
+                isMobile={isMobile}
+                sidebarWidth={sidebarWidth}
+                setSidebarWidth={setSidebarWidth}
+            />
 
             <div className="main-wrapper">
                 {/* ── Mobile hamburger bar ───────────────────────── */}
