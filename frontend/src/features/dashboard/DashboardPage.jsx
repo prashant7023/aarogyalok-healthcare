@@ -24,8 +24,14 @@ export default function DashboardPage() {
 
     return (
         <div className="fade-in">
+            { /* Displaying an image at the top of the dashboard */ }
+    {/* <img 
+        src={background.jpg}
+        alt="Dashboard Banner" 
+        style={{ width: '10%', height: '20px', objectFit: 'cover', borderRadius: '16px', marginBottom: '2rem' }} 
+    /> */}
             {/* Hero */}
-            <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e3a5f)', borderRadius: '16px', padding: '2.5rem', marginBottom: '2rem', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'linear-gradient(135deg, #4176cbff, #3774c4ff)', borderRadius: '16px', padding: '2.5rem', marginBottom: '2rem', color: '#fff', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', right: '2rem', top: '1rem', opacity: 0.1 }}>
                     <Activity size={100} color="#fff" />
                 </div>
