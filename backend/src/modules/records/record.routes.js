@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { createRecord, getRecords, getRecord, deleteRecord } = require('./record.controller');
 const { protect } = require('../../shared/middleware/auth.middleware');
+const Patient = require('../auth/patient.model');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -30,6 +31,22 @@ const router = Router();
 
 // All records routes require authentication; role-based logic is in the controller
 router.use(protect);
+
+// Doctor: search a patient by email to add a record on their behalf
+router.get('/search-patient', async (req, res) => {
+    try {
+        if (!['doctor', 'hospital', 'admin'].includes(req.user.role)) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+        const { email } = req.query;
+        if (!email) return res.status(400).json({ success: false, message: 'email query required' });
+        const patient = await Patient.findOne({ email: email.toLowerCase().trim() }).select('name email');
+        if (!patient) return res.status(404).json({ success: false, message: 'No patient found with that email' });
+        res.json({ success: true, data: patient });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
 
 router.post('/upload', upload.single('file'), createRecord);
 router.get('/', getRecords);

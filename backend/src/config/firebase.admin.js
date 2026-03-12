@@ -92,8 +92,6 @@ async function sendPushToTokens(tokens, { title, body, data = {} }, userDoc = nu
             notification: {
                 title,
                 body,
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
                 requireInteraction: true,
                 tag: data.reminderId || 'med-reminder',
             },

@@ -17,12 +17,17 @@ router.put('/fcm-token', protect, async (req, res) => {
         if (!fcmToken) return res.status(400).json({ message: 'fcmToken is required' });
 
         const Model = req.user.role === 'doctor' ? Doctor : Patient;
-        await Model.findByIdAndUpdate(
+        const updated = await Model.findByIdAndUpdate(
             req.user._id,
-            { $addToSet: { fcmTokens: fcmToken } }
+            { $addToSet: { fcmTokens: fcmToken } },
+            { new: true }
         );
-        console.log(`[FCM] Token stored for user ${req.user._id} (${req.user.role})`);
-        res.json({ message: 'FCM token saved' });
+        if (!updated) {
+            console.error(`[FCM] User not found in DB: id=${req.user._id} role=${req.user.role}`);
+            return res.status(404).json({ message: 'User not found — token not saved' });
+        }
+        console.log(`[FCM] Token stored for user ${req.user._id} (${req.user.role}) — total tokens: ${updated.fcmTokens.length}`);
+        res.json({ message: 'FCM token saved', tokenCount: updated.fcmTokens.length });
     } catch (e) {
         res.status(500).json({ message: e.message });
     }

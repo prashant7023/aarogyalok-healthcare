@@ -52,7 +52,6 @@ export default function LoginPage() {
                                 placeholder="you@example.com"
                                 value={form.email}
                                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                                required
                                 style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: '#fff' }}
                             />
                         </div>
@@ -64,7 +63,6 @@ export default function LoginPage() {
                                 placeholder="••••••••"
                                 value={form.password}
                                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                                required
                                 style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: '#fff' }}
                             />
                         </div>

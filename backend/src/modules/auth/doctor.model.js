@@ -10,7 +10,7 @@ const doctorSchema = new mongoose.Schema(
         phone: { type: String, trim: true },
         fcmTokens: { type: [String], default: [] },
 
-        specialization: { type: String, required: true },
+        specialization: { type: String, default: '' },
         qualification: { type: String },
         experience: { type: Number },
 

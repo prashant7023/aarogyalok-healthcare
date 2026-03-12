@@ -57,8 +57,8 @@ export function useFCMToken() {
                 console.log('[FCM] Token registered:', fcmToken);
 
                 // Send token to backend to store against the user
-                await api.put('/auth/fcm-token', { fcmToken });
-                console.log('[FCM] Token saved to backend.');
+                const saveRes = await api.put('/auth/fcm-token', { fcmToken });
+                console.log(`[FCM] Token saved to backend. DB token count: ${saveRes.data.tokenCount}`);
 
             } catch (err) {
                 console.error('[FCM] Token registration failed:', err.message, err);
