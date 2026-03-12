@@ -1,11 +1,16 @@
 const { Router } = require('express');
 const { createRecord, getRecords, getRecord, deleteRecord } = require('./record.controller');
-const { protect, restrict } = require('../../shared/middleware/auth.middleware');
+const { protect } = require('../../shared/middleware/auth.middleware');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+
+// Resolve uploads dir relative to this file so it works regardless of CWD
+const UPLOADS_DIR = path.join(__dirname, '../../../uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, 'uploads/'),
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
     filename: (_req, file, cb) => {
         const ext = path.extname(file.originalname);
         cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
@@ -23,8 +28,8 @@ const upload = multer({
 
 const router = Router();
 
-// All records routes: protected + doctor or hospital only
-router.use(protect, restrict('doctor', 'hospital', 'admin'));
+// All records routes require authentication; role-based logic is in the controller
+router.use(protect);
 
 router.post('/upload', upload.single('file'), createRecord);
 router.get('/', getRecords);
