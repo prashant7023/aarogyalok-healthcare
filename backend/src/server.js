@@ -17,12 +17,27 @@ const io = new Server(server, {
 
 app.set('io', io);
 
-// Original socket handler — queue room only
+// Socket.IO handler — queue & doctor booking rooms
 io.on('connection', (socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);
 
+    // Join hospital queue room (original)
     socket.on('join-hospital', (hospitalId) => {
         socket.join(`hospital-${hospitalId}`);
+        console.log(`Socket ${socket.id} joined hospital-${hospitalId}`);
+    });
+
+    // Join doctor room for real-time booking updates
+    socket.on('join-doctor', (doctorId) => {
+        socket.join(`doctor-${doctorId}`);
+        console.log(`Socket ${socket.id} joined doctor-${doctorId}`);
+    });
+
+    // Join slots room for specific doctor and date
+    socket.on('join-slots', ({ doctorId, date }) => {
+        const room = `slots-${doctorId}-${date}`;
+        socket.join(room);
+        console.log(`Socket ${socket.id} joined ${room}`);
     });
 
     socket.on('disconnect', () => {

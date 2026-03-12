@@ -10,7 +10,7 @@ const NAV = [
     { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['patient', 'doctor', 'admin'] },
 ];
 
-export default function Sidebar({ isOpen, setIsOpen, isMobile }) {
+export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, setSidebarWidth }) {
     const { user } = useAuthStore();
     const role = user?.role || 'patient';
 
@@ -19,13 +19,66 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile }) {
     const visibleNav = NAV.filter((n) => n.roles.includes(role));
     const sections = [...new Set(visibleNav.map((n) => n.section))];
 
+    // Drag-to-resize logic
+    const handleDragStart = (e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+
+        const onMouseMove = (moveEvent) => {
+            const newWidth = Math.max(72, startWidth + (moveEvent.clientX - startX));
+            // Cap it around 400px so it doesn't cover everything
+            setSidebarWidth(Math.min(newWidth, 400));
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            // Snap to closed if dragged very narrow
+            setSidebarWidth((prevWidth) => {
+                if (prevWidth < 120) {
+                    setIsOpen(false);
+                    return prevWidth; // Width resets when opened next
+                } else if (!isOpen) {
+                    setIsOpen(true);
+                }
+                return prevWidth;
+            });
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
     return (
-        <aside className="sidebar">
+        <aside
+            className="sidebar"
+            style={isMobile ? undefined : { width: isOpen ? sidebarWidth : undefined }}
+        >
             {/* Desktop collapse toggle */}
             {!isMobile && (
-                <button className="sidebar-toggle-btn" onClick={() => setIsOpen(!isOpen)} title="Toggle sidebar">
-                    {isOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-                </button>
+                <>
+                    <button className="sidebar-toggle-btn" onClick={() => setIsOpen(!isOpen)} title="Toggle sidebar">
+                        {isOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                    </button>
+
+                    {/* Drag Handle */}
+                    {isOpen && (
+                        <div
+                            onMouseDown={handleDragStart}
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                right: 0,
+                                width: '6px',
+                                height: '100%',
+                                cursor: 'col-resize',
+                                zIndex: 102,
+                            }}
+                            className="sidebar-resizer"
+                        />
+                    )}
+                </>
             )}
 
             {/* Mobile close button */}

@@ -1,0 +1,139 @@
+const asyncHandler = require('../../shared/utils/asyncHandler');
+const appointmentService = require('./appointment.service');
+const { sendSuccess } = require('../../shared/utils/response');
+
+// ========== DOCTOR CONTROLLERS ==========
+
+// Create appointment session
+const createAppointment = asyncHandler(async (req, res) => {
+    const appointment = await appointmentService.createAppointment(
+        req.user._id,
+        req.body
+    );
+    sendSuccess(res, appointment, 'Appointment created successfully', 201);
+});
+
+// Get doctor's appointments
+const getDoctorAppointments = asyncHandler(async (req, res) => {
+    const date = req.query.date; // Allow undefined to show all appointments
+    const appointments = await appointmentService.getDoctorAppointments(
+        req.user._id,
+        date
+    );
+    sendSuccess(res, appointments, 'Appointments fetched successfully');
+});
+
+// Get appointment details with patient bookings
+const getAppointmentDetails = asyncHandler(async (req, res) => {
+    const data = await appointmentService.getAppointmentDetails(
+        req.params.appointmentId,
+        req.user._id
+    );
+    sendSuccess(res, data, 'Appointment details fetched successfully');
+});
+
+// Mark patient (present/absent/completed)
+const markPatient = asyncHandler(async (req, res) => {
+    const { markStatus } = req.body;
+    const booking = await appointmentService.markPatient(
+        req.params.bookingId,
+        req.user._id,
+        markStatus
+    );
+    sendSuccess(res, booking, 'Patient marked successfully');
+});
+
+// ========== PATIENT CONTROLLERS ==========
+
+// Get all appointments (for browsing)
+const getAllAppointments = asyncHandler(async (req, res) => {
+    const filters = {
+        specialization: req.query.specialization,
+        fromDate: req.query.fromDate
+    };
+    const appointments = await appointmentService.getAllAppointments(filters);
+    sendSuccess(res, appointments, 'Appointments fetched successfully');
+});
+
+// Get appointment with slots
+const getAppointmentWithSlots = asyncHandler(async (req, res) => {
+    const appointment = await appointmentService.getAppointmentWithSlots(
+        req.params.appointmentId
+    );
+    sendSuccess(res, appointment, 'Appointment fetched successfully');
+});
+
+// Book a slot
+const bookSlot = asyncHandler(async (req, res) => {
+    const io = req.app.get('io');
+    const booking = await appointmentService.bookSlot(
+        req.user._id,
+        req.body,
+        io
+    );
+    sendSuccess(res, booking, 'Slot booked successfully', 201);
+});
+
+// Get patient's bookings
+const getPatientBookings = asyncHandler(async (req, res) => {
+    const bookings = await appointmentService.getPatientBookings(req.user._id);
+    sendSuccess(res, bookings, 'Bookings fetched successfully');
+});
+
+// Cancel booking
+const cancelBooking = asyncHandler(async (req, res) => {
+    const io = req.app.get('io');
+    const booking = await appointmentService.cancelBooking(
+        req.params.bookingId,
+        req.user._id,
+        io
+    );
+    sendSuccess(res, booking, 'Booking cancelled successfully');
+});
+
+// ========== DELETE CONTROLLERS (For clearing data) ==========
+
+// Delete all appointments
+const deleteAllAppointments = asyncHandler(async (req, res) => {
+    const result = await appointmentService.deleteAllAppointments();
+    sendSuccess(res, result, `Deleted ${result.deletedCount} appointments`);
+});
+
+// Delete all bookings
+const deleteAllBookings = asyncHandler(async (req, res) => {
+    const result = await appointmentService.deleteAllBookings();
+    sendSuccess(res, result, `Deleted ${result.deletedCount} bookings`);
+});
+
+// Delete specific appointment by ID
+const deleteAppointmentById = asyncHandler(async (req, res) => {
+    const appointment = await appointmentService.deleteAppointmentById(req.params.appointmentId);
+    sendSuccess(res, appointment, 'Appointment deleted successfully');
+});
+
+// Clear all queue data
+const clearAllQueueData = asyncHandler(async (req, res) => {
+    const result = await appointmentService.clearAllQueueData();
+    sendSuccess(res, result, 'All queue data cleared successfully');
+});
+
+module.exports = {
+    // Doctor
+    createAppointment,
+    getDoctorAppointments,
+    getAppointmentDetails,
+    markPatient,
+    
+    // Patient
+    getAllAppointments,
+    getAppointmentWithSlots,
+    bookSlot,
+    getPatientBookings,
+    cancelBooking,
+    
+    // Delete
+    deleteAllAppointments,
+    deleteAllBookings,
+    deleteAppointmentById,
+    clearAllQueueData
+};
