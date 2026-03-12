@@ -6,7 +6,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Appointment = require('../src/modules/queue/appointment.model');
-const User = require('../src/modules/auth/auth.model');
+const Doctor = require('../src/modules/auth/doctor.model');
 
 // Generate time slots
 function generateTimeSlots(startTime, endTime, durationMinutes) {
@@ -43,7 +43,7 @@ async function seedAppointments() {
         console.log('✅ Connected to MongoDB');
 
         // Get a doctor user (assuming doctor@test.com exists)
-        const doctor = await User.findOne({ role: 'doctor' });
+        const doctor = await Doctor.findOne();
         if (!doctor) {
             console.error('❌ No doctor found in database. Please create a doctor user first.');
             process.exit(1);

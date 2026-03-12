@@ -3,7 +3,7 @@
 
 require('dotenv').config();
 const mongoose = require('mongoose');
-const Doctor = require('../modules/queue/doctor.model');
+const Doctor = require('../modules/auth/doctor.model');
 const bcrypt = require('bcryptjs');
 
 const sampleDoctors = [

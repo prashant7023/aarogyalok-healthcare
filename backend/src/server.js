@@ -3,11 +3,15 @@ const { Server } = require('socket.io');
 const app = require('./app');
 const connectDB = require('./config/db');
 const medicationModule = require('./modules/medication');
+const { initFirebaseAdmin } = require('./config/firebase.admin');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 5000;
 
 connectDB();
+
+// Initialise Firebase Admin at startup so auth errors surface immediately
+initFirebaseAdmin();
 
 const server = http.createServer(app);
 

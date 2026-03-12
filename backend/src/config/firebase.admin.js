@@ -68,15 +68,36 @@ function getFirebaseMessaging() {
  */
 async function sendPushToTokens(tokens, { title, body, data = {} }, userDoc = null) {
     const msg = getFirebaseMessaging();
-    if (!msg || !tokens?.length) return;
+    if (!msg) {
+        console.warn('[FCM] Firebase not initialized — skipping push.');
+        return;
+    }
+    if (!tokens?.length) {
+        console.warn('[FCM] No FCM tokens for user — push skipped.');
+        return;
+    }
+
+    const dataPayload = {
+        title: String(title),
+        body: String(body),
+        ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
+    };
 
     const message = {
-        // Root notification removed: prevents FCM Web SDK from duplicating the notification.
-        // We pass title and body inside data so our service worker can render it manually.
-        data: {
-            title: String(title),
-            body: String(body),
-            ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
+        // data-only payload so the SW can handle it manually
+        data: dataPayload,
+        // webpush.notification is required for Chrome background push to wake the service worker
+        webpush: {
+            headers: { Urgency: 'high' },
+            notification: {
+                title,
+                body,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                requireInteraction: true,
+                tag: data.reminderId || 'med-reminder',
+            },
+            fcmOptions: { link: '/' },
         },
         android: {
             notification: { title, body, icon: 'ic_launcher', sound: 'default', priority: 'high' },

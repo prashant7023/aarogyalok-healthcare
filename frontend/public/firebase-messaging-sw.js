@@ -7,9 +7,13 @@
  * Handles background push notifications when the tab is closed/hidden.
  */
 
+// Force this SW to activate immediately instead of waiting for old tabs to close
+self.addEventListener('install',  () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
+
 // Use the compat library inside service workers (importScripts style)
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-messaging-compat.js');
 
 // Firebase config — must be hardcoded here as env vars are not available in SWs
 firebase.initializeApp({
@@ -34,8 +38,6 @@ messaging.onBackgroundMessage((payload) => {
 
     self.registration.showNotification(title, {
         body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
         tag: data.reminderId || 'med-reminder',
         requireInteraction: true, // stays visible until user interacts
         actions: [

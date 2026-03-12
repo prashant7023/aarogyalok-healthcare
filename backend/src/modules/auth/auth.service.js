@@ -1,26 +1,45 @@
 const jwt = require('jsonwebtoken');
-const User = require('./auth.model');
+const Patient = require('./patient.model');
+const Doctor = require('./doctor.model');
 const { AppError } = require('../../shared/middleware/error.middleware');
 
-const signToken = (id) =>
-    jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+const signToken = (id, role) =>
+    jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 
-const registerUser = async (name, email, password, role) => {
-    const existing = await User.findOne({ email });
-    if (existing) throw new AppError('Email already in use', 400);
-    const user = await User.create({ name, email, password, role });
-    const token = signToken(user._id);
-    return { user: { _id: user._id, name: user.name, email: user.email, role: user.role }, token };
+const registerUser = async (name, email, password, role, extraData = {}) => {
+    // Check email uniqueness across both collections
+    const existingPatient = await Patient.findOne({ email });
+    const existingDoctor = await Doctor.findOne({ email });
+    if (existingPatient || existingDoctor) throw new AppError('Email already in use', 400);
+
+    if (role === 'doctor') {
+        const doctor = await Doctor.create({ name, email, password, role: 'doctor', ...extraData });
+        const token = signToken(doctor._id, 'doctor');
+        const doctorData = doctor.toObject();
+        delete doctorData.password;
+        return { user: doctorData, token };
+    }
+
+    const patient = await Patient.create({ name, email, password, role: role || 'patient' });
+    const token = signToken(patient._id, patient.role);
+    const patientData = patient.toObject();
+    delete patientData.password;
+    return { user: patientData, token };
 };
 
 const loginUser = async (email, password) => {
-    const user = await User.findOne({ email }).select('+password');
+    // Try Patient collection first, then Doctor
+    let user = await Patient.findOne({ email }).select('+password');
+    if (!user) {
+        user = await Doctor.findOne({ email }).select('+password');
+    }
     if (!user || !(await user.comparePassword(password)))
         throw new AppError('Invalid email or password', 401);
-    const token = signToken(user._id);
-    return { user: { _id: user._id, name: user.name, email: user.email, role: user.role }, token };
+
+    const token = signToken(user._id, user.role);
+    const userData = user.toObject();
+    delete userData.password;
+    return { user: userData, token };
 };
 
-const getMe = async (userId) => User.findById(userId).select('-password');
-
-module.exports = { registerUser, loginUser, getMe };
+module.exports = { registerUser, loginUser };

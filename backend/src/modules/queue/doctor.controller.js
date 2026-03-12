@@ -2,27 +2,6 @@ const asyncHandler = require('../../shared/utils/asyncHandler');
 const doctorService = require('./doctor.service');
 const { sendSuccess } = require('../../shared/utils/response');
 
-// Doctor Registration
-const registerDoctor = asyncHandler(async (req, res) => {
-    const { doctor, token } = await doctorService.registerDoctor(req.body);
-    
-    const doctorData = doctor.toObject();
-    delete doctorData.password;
-    
-    sendSuccess(res, { doctor: doctorData, token }, 'Doctor registered successfully', 201);
-});
-
-// Doctor Login
-const loginDoctor = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
-    const { doctor, token } = await doctorService.loginDoctor(email, password);
-    
-    const doctorData = doctor.toObject();
-    delete doctorData.password;
-    
-    sendSuccess(res, { doctor: doctorData, token }, 'Login successful');
-});
-
 // Get all doctors (for patients)
 const getAllDoctors = asyncHandler(async (req, res) => {
     const filters = {
@@ -78,8 +57,6 @@ const cancelBooking = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-    registerDoctor,
-    loginDoctor,
     getAllDoctors,
     getDoctorWithSlots,
     bookAppointment,

@@ -52,6 +52,7 @@ export default function DoctorRegistration({ onClose, onSuccess }) {
                 name: formData.name,
                 email: formData.email,
                 password: formData.password,
+                role: 'doctor',
                 phone: formData.phone,
                 specialization: formData.specialization,
                 qualification: formData.qualification,
@@ -66,11 +67,11 @@ export default function DoctorRegistration({ onClose, onSuccess }) {
                 clinicAddress: formData.clinicAddress
             };
 
-            const res = await api.post('/queue/doctors/register', payload);
+            const res = await api.post('/auth/register', payload);
             
             // Store doctor auth in auth store
-            const { doctor, token } = res.data.data;
-            setAuth(doctor, token);
+            const { user, token } = res.data.data;
+            setAuth(user, token);
             
             alert('✅ Doctor registered successfully! You are now logged in.');
             if (onSuccess) onSuccess(res.data.data);

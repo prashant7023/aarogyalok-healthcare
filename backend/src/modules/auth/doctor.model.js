@@ -1,73 +1,72 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const doctorSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
         email: { type: String, required: true, unique: true, lowercase: true, trim: true },
         password: { type: String, required: true },
+        role: { type: String, default: 'doctor' },
         phone: { type: String, trim: true },
-        specialization: { type: String, required: true }, // Cardiologist, Dermatologist, etc.
-        qualification: { type: String }, // MBBS, MD, etc.
-        experience: { type: Number }, // Years of experience
-        
-        // Working Schedule
+        fcmTokens: { type: [String], default: [] },
+
+        specialization: { type: String, required: true },
+        qualification: { type: String },
+        experience: { type: Number },
+
         workingDays: {
             type: [String],
             enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-            default: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+            default: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
         },
         workingHours: {
-            start: { type: String, required: true, default: '10:00' }, // HH:mm format
-            end: { type: String, required: true, default: '14:00' }
+            start: { type: String, default: '10:00' },
+            end: { type: String, default: '14:00' },
         },
-        
-        // Time management
-        patientDuration: { type: Number, required: true, default: 10 }, // minutes per patient
+        patientDuration: { type: Number, default: 10 },
         consultationFee: { type: Number, default: 500 },
-        
-        // Additional info
         clinicAddress: { type: String },
         isActive: { type: Boolean, default: true },
-        rating: { type: Number, default: 0, min: 0, max: 5 }
+        rating: { type: Number, default: 0, min: 0, max: 5 },
     },
     { timestamps: true }
 );
 
-// Generate time slots based on working hours and patient duration
-doctorSchema.methods.generateTimeSlots = function(date) {
+doctorSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    this.password = await bcrypt.hash(this.password, 12);
+    next();
+});
+
+doctorSchema.methods.comparePassword = async function (candidatePassword) {
+    return bcrypt.compare(candidatePassword, this.password);
+};
+
+doctorSchema.methods.generateTimeSlots = function (date) {
     const slots = [];
     const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
-    
-    // Check if doctor works on this day
-    if (!this.workingDays.includes(dayName)) {
-        return slots;
-    }
-    
+
+    if (!this.workingDays.includes(dayName)) return slots;
+
     const [startHour, startMin] = this.workingHours.start.split(':').map(Number);
     const [endHour, endMin] = this.workingHours.end.split(':').map(Number);
-    
+
     let currentTime = new Date(date);
     currentTime.setHours(startHour, startMin, 0, 0);
-    
+
     const endTime = new Date(date);
     endTime.setHours(endHour, endMin, 0, 0);
-    
+
     while (currentTime < endTime) {
-        const timeString = currentTime.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
+        const timeString = currentTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
             minute: '2-digit',
-            hour12: true 
+            hour12: true,
         });
-        
-        slots.push({
-            time: timeString,
-            timestamp: new Date(currentTime),
-            available: true
-        });
-        
+        slots.push({ time: timeString, timestamp: new Date(currentTime), available: true });
         currentTime = new Date(currentTime.getTime() + this.patientDuration * 60000);
     }
-    
+
     return slots;
 };
 
