@@ -9,7 +9,7 @@ const reminderLogSchema = new mongoose.Schema(
         },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
+            ref: 'Patient',
             required: true,
             index: true,
         },

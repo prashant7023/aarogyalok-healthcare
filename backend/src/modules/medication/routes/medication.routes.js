@@ -9,12 +9,12 @@ const {
     respondToReminder,
     getAdherenceStats,
 } = require('../controllers/medication.controller');
-const { protect, restrict } = require('../../../shared/middleware/auth.middleware');
+const { protect } = require('../../../shared/middleware/auth.middleware');
 
 const router = Router();
 
-// All medication routes: protected + patient only
-router.use(protect, restrict('patient'));
+// All medication routes: protected (any role)
+router.use(protect);
 
 // ---- Reminder routes (declared BEFORE /:id to avoid conflicts) ----
 router.get('/reminders/today', getTodayReminders);

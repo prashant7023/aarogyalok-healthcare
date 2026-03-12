@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
-const User = require('../../modules/auth/auth.model');
+const Patient = require('../../modules/auth/patient.model');
+const Doctor = require('../../modules/auth/doctor.model');
 
 const protect = async (req, res, next) => {
     try {
@@ -11,13 +12,22 @@ const protect = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Not authorized, no token' });
         }
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key_123');
-        
-        const user = await User.findById(decoded.id).select('-password');
-        
+
+        let user;
+        if (decoded.role === 'doctor') {
+            user = await Doctor.findById(decoded.id).select('-password');
+        } else {
+            user = await Patient.findById(decoded.id).select('-password');
+            // Fallback: old JWTs without role — also check Doctor collection
+            if (!user) {
+                user = await Doctor.findById(decoded.id).select('-password');
+            }
+        }
+
         if (!user) {
             return res.status(401).json({ success: false, message: 'User not found' });
         }
-        
+
         req.user = user;
         next();
     } catch (error) {

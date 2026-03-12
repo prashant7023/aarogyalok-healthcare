@@ -2,18 +2,20 @@ import { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, DollarSign, MapPin, ArrowLeft } from 'lucide-react';
 import api from '../../shared/utils/api';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../auth/authStore';
 
 export default function CreateAppointment() {
     const navigate = useNavigate();
+    const { user } = useAuthStore();
     const [formData, setFormData] = useState({
         title: '',
-        specialization: '',
+        specialization: user?.specialization || '',
         appointmentDate: '',
-        price: '',
-        address: '',
-        startTime: '09:00',
-        endTime: '14:00',
-        slotDuration: '10'
+        price: user?.consultationFee ? String(user.consultationFee) : '',
+        address: user?.clinicAddress || '',
+        startTime: user?.workingHours?.start || '09:00',
+        endTime: user?.workingHours?.end || '14:00',
+        slotDuration: user?.patientDuration ? String(user.patientDuration) : '10'
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');

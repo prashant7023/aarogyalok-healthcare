@@ -1,45 +1,5 @@
-const Doctor = require('./doctor.model');
+const Doctor = require('../auth/doctor.model');
 const Booking = require('./booking.model');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-// Doctor Registration
-const registerDoctor = async (doctorData) => {
-    const hashedPassword = await bcrypt.hash(doctorData.password, 12);
-    const doctor = await Doctor.create({
-        ...doctorData,
-        password: hashedPassword
-    });
-    
-    const token = jwt.sign(
-        { id: doctor._id, role: 'doctor' },
-        process.env.JWT_SECRET || 'secret_key_123',
-        { expiresIn: '7d' }
-    );
-    
-    return { doctor, token };
-};
-
-// Doctor Login
-const loginDoctor = async (email, password) => {
-    const doctor = await Doctor.findOne({ email });
-    if (!doctor) {
-        throw new Error('Invalid credentials');
-    }
-    
-    const isValid = await bcrypt.compare(password, doctor.password);
-    if (!isValid) {
-        throw new Error('Invalid credentials');
-    }
-    
-    const token = jwt.sign(
-        { id: doctor._id, role: 'doctor' },
-        process.env.JWT_SECRET || 'secret_key_123',
-        { expiresIn: '7d' }
-    );
-    
-    return { doctor, token };
-};
 
 // Get all doctors (for patient to browse)
 const getAllDoctors = async (filters = {}) => {
@@ -205,8 +165,6 @@ const cancelBooking = async (bookingId, userId, io) => {
 };
 
 module.exports = {
-    registerDoctor,
-    loginDoctor,
     getAllDoctors,
     getDoctorWithSlots,
     bookAppointment,

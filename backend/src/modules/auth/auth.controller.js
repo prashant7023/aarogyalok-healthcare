@@ -3,8 +3,8 @@ const authService = require('./auth.service');
 const { sendSuccess } = require('../../shared/utils/response');
 
 const register = asyncHandler(async (req, res) => {
-    const { name, email, password, role } = req.body;
-    const result = await authService.registerUser(name, email, password, role);
+    const { name, email, password, role, ...extraData } = req.body;
+    const result = await authService.registerUser(name, email, password, role, extraData);
     sendSuccess(res, result, 'Registration successful', 201);
 });
 
@@ -15,8 +15,8 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const getMe = asyncHandler(async (req, res) => {
-    const user = await authService.getMe(req.user._id);
-    sendSuccess(res, user, 'User fetched');
+    // req.user is already populated by the protect middleware
+    sendSuccess(res, req.user, 'User fetched');
 });
 
 module.exports = { register, login, getMe };

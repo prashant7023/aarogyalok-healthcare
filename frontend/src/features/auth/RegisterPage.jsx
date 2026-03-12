@@ -10,7 +10,11 @@ const ROLES = [
 ];
 
 export default function RegisterPage() {
-    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'patient' });
+    const [form, setForm] = useState({
+        name: '', email: '', password: '', role: 'patient',
+        // Doctor-specific fields
+        specialization: '', qualification: '', experience: '', consultationFee: '', clinicAddress: '',
+    });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { register } = useAuthStore();
@@ -21,7 +25,17 @@ export default function RegisterPage() {
         setError('');
         setLoading(true);
         try {
-            await register(form.name, form.email, form.password, form.role);
+            const { name, email, password, role, ...extra } = form;
+            // Strip empty optional doctor fields; keep non-empty ones
+            const extraData = Object.fromEntries(
+                Object.entries(extra).filter(([, v]) => v !== '')
+            );
+            // authStore.register only passes role; we need to send extraData too
+            const res = await import('../../shared/utils/api').then(m =>
+                m.default.post('/auth/register', { name, email, password, role, ...extraData })
+            );
+            const { user, token } = res.data.data;
+            useAuthStore.getState().setAuth(user, token);
             navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
@@ -79,12 +93,11 @@ export default function RegisterPage() {
                                     placeholder={ph}
                                     value={form[key]}
                                     onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                                    required
-                                    minLength={key === 'password' ? 6 : undefined}
                                     style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: '#fff' }}
                                 />
                             </div>
                         ))}
+
                         <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }}>
                             {loading ? 'Creating account...' : 'Create Account'}
                         </button>

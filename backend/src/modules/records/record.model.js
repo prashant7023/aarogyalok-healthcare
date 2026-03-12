@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const healthRecordSchema = new mongoose.Schema(
     {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
         title: { type: String, required: [true, 'Record title is required'], trim: true },
         description: { type: String },
         fileUrl: { type: String },

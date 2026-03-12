@@ -18,7 +18,8 @@
 const cron = require('node-cron');
 const { getRedisClient } = require('../../../config/redis');
 const ReminderLog = require('../models/reminderLog.model');
-const User = require('../../auth/auth.model');
+const Patient = require('../../auth/patient.model');
+const Doctor = require('../../auth/doctor.model');
 const { sendPushToTokens } = require('../../../config/firebase.admin');
 const Medication = require('../models/medication.model');
 
@@ -170,7 +171,13 @@ const fireDueReminders = async () => {
 
             // 2. FCM push — OS-level notification (works when tab is closed)
             try {
-                const user = await User.findById(data.userId).select('fcmTokens');
+                let user = await Patient.findById(data.userId).select('fcmTokens');
+                if (!user) user = await Doctor.findById(data.userId).select('fcmTokens');
+                if (!user) {
+                    console.warn(`[FCM] User ${data.userId} not found in DB — no push sent.`);
+                } else if (!user.fcmTokens?.length) {
+                    console.warn(`[FCM] User ${data.userId} has no FCM tokens — push skipped.`);
+                }
                 if (user?.fcmTokens?.length) {
                     await sendPushToTokens(
                         user.fcmTokens,
