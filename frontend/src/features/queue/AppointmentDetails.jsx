@@ -17,6 +17,7 @@ export default function AppointmentDetails() {
     const [loading, setLoading] = useState(true);
     const [offlinePatient, setOfflinePatient] = useState({
         patientName: '',
+        patientPhone: '',
         patientAge: '',
         patientGender: 'Male',
         description: '',
@@ -94,7 +95,7 @@ export default function AppointmentDetails() {
                 ...offlinePatient,
                 patientAge: parseInt(offlinePatient.patientAge),
             });
-            setOfflinePatient({ patientName: '', patientAge: '', patientGender: 'Male', description: '' });
+            setOfflinePatient({ patientName: '', patientPhone: '', patientAge: '', patientGender: 'Male', description: '' });
             fetchDetails();
         } catch (e) {
             alert(e.response?.data?.message || 'Failed to add offline patient');
@@ -149,6 +150,7 @@ export default function AppointmentDetails() {
                             <option value="Other">Other</option>
                         </select>
                     </div>
+                    <input className="input" type="tel" placeholder="Patient mobile number (optional)" value={offlinePatient.patientPhone} onChange={(e) => setOfflinePatient((prev) => ({ ...prev, patientPhone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} pattern="\d{10}" title="Enter a valid 10-digit mobile number" />
                     <textarea className="input" rows={2} placeholder="Symptoms / notes" value={offlinePatient.description} onChange={(e) => setOfflinePatient((prev) => ({ ...prev, description: e.target.value }))} required style={{ resize: 'vertical' }} />
                     <button type="submit" className="btn btn-primary" disabled={submittingOffline} style={{ width: 'fit-content' }}>
                         {submittingOffline ? 'Adding...' : 'Add to Queue'}
@@ -206,6 +208,11 @@ export default function AppointmentDetails() {
                                             <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.2rem' }}>
                                                 {booking.patientAge}y • {booking.patientGender} {booking.isOfflineEntry ? '• Walk-in' : ''}
                                             </div>
+                                            {booking.patientPhone && (
+                                                <div style={{ fontSize: '0.78rem', color: '#1e40af', marginBottom: '0.2rem', fontWeight: 600 }}>
+                                                    Mobile: {booking.patientPhone}
+                                                </div>
+                                            )}
                                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                 <span style={{ padding: '0.2rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, background: '#dbeafe', color: '#1e40af', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                                     <Hash size={11} /> Current: {appointment.currentTokenNumber || '-'}

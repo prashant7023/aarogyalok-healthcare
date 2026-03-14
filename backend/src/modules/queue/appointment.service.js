@@ -273,6 +273,7 @@ const addOfflinePatientToQueue = async (appointmentId, doctorId, data, io) => {
         appointmentId,
         patientId: null,
         patientName: data.patientName,
+        patientPhone: data.patientPhone,
         patientAge: data.patientAge,
         patientGender: data.patientGender,
         description: data.description,
@@ -350,6 +351,7 @@ const bookSlot = async (patientId, bookingData, io) => {
     const {
         appointmentId,
         patientName,
+        patientPhone,
         patientAge,
         patientGender,
         description
@@ -384,6 +386,7 @@ const bookSlot = async (patientId, bookingData, io) => {
         patientId,
         tokenNumber,
         patientName,
+        patientPhone,
         patientAge,
         patientGender,
         description,

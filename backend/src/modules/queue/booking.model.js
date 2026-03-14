@@ -18,6 +18,14 @@ const bookingSchema = new mongoose.Schema(
             required: true,
             trim: true 
         },
+        patientPhone: {
+            type: String,
+            trim: true,
+            required() {
+                return !this.isOfflineEntry;
+            },
+            match: [/^\d{10}$/, 'Patient phone must be a 10-digit number'],
+        },
         patientAge: { 
             type: Number, 
             required: true,

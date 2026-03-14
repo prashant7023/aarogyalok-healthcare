@@ -10,6 +10,7 @@ export default function BookAppointment() {
 
     const [formData, setFormData] = useState({
         patientName: '',
+        patientPhone: '',
         patientAge: '',
         patientGender: 'Male',
         description: ''
@@ -182,6 +183,23 @@ export default function BookAppointment() {
                                 placeholder="Enter your full name"
                                 value={formData.patientName}
                                 onChange={(e) => setFormData({...formData, patientName: e.target.value})}
+                                required
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
+                                Mobile Number *
+                            </label>
+                            <input
+                                type="tel"
+                                className="input"
+                                placeholder="Enter 10-digit mobile number"
+                                value={formData.patientPhone}
+                                onChange={(e) => setFormData({...formData, patientPhone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                                pattern="\d{10}"
+                                title="Enter a valid 10-digit mobile number"
                                 required
                                 style={{ width: '100%' }}
                             />
