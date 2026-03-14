@@ -18,6 +18,9 @@ router.post('/appointments', protect, appointmentController.createAppointment);
 // Get doctor's appointments (dashboard)
 router.get('/doctor/appointments', protect, appointmentController.getDoctorAppointments);
 
+// Doctor dashboard analytics trend
+router.get('/doctor/analytics', protect, appointmentController.getDoctorAnalytics);
+
 // Doctor CRM - consulted patients list
 router.get('/doctor/consulted-patients', protect, restrict('doctor'), appointmentController.getDoctorConsultedPatients);
 

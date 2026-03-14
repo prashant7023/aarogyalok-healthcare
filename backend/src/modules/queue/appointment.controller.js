@@ -24,6 +24,11 @@ const getDoctorAppointments = asyncHandler(async (req, res) => {
     sendSuccess(res, appointments, 'Appointments fetched successfully');
 });
 
+const getDoctorAnalytics = asyncHandler(async (req, res) => {
+    const data = await appointmentService.getDoctorAnalytics(req.user._id, req.query.days);
+    sendSuccess(res, data, 'Doctor analytics fetched successfully');
+});
+
 const getDoctorConsultedPatients = asyncHandler(async (req, res) => {
     const data = await appointmentService.getDoctorConsultedPatients(req.user._id, {
         search: req.query.search,
@@ -178,6 +183,7 @@ module.exports = {
     // Doctor
     createAppointment,
     getDoctorAppointments,
+    getDoctorAnalytics,
     getDoctorConsultedPatients,
     getDoctorPatientDetails,
     getAppointmentDetails,

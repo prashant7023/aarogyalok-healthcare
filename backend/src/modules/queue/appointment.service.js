@@ -304,6 +304,149 @@ const getDoctorAppointments = async (doctorId, date) => {
     return Appointment.find(query).sort(sortOrder);
 };
 
+const getDoctorAnalytics = async (doctorId, days = 14) => {
+    const parsedDays = Number(days);
+    const windowDays = Number.isFinite(parsedDays) && parsedDays > 0 ? Math.min(Math.floor(parsedDays), 90) : 14;
+
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (windowDays - 1));
+
+    const appointmentIds = await Appointment.find({ doctorId }).distinct('_id');
+
+    const rawBookings = appointmentIds.length
+        ? await Booking.aggregate([
+            {
+                $match: {
+                    appointmentId: { $in: appointmentIds },
+                    createdAt: { $gte: start, $lte: end },
+                },
+            },
+            {
+                $project: {
+                    day: {
+                        $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$createdAt',
+                            timezone: 'Asia/Kolkata',
+                        },
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: '$day',
+                    bookings: { $sum: 1 },
+                },
+            },
+            { $sort: { _id: 1 } },
+        ])
+        : [];
+
+    const rawCompleted = appointmentIds.length
+        ? await Booking.aggregate([
+            {
+                $match: {
+                    appointmentId: { $in: appointmentIds },
+                    updatedAt: { $gte: start, $lte: end },
+                    $or: [
+                        { status: 'completed' },
+                        { markedBy: 'completed' },
+                    ],
+                },
+            },
+            {
+                $project: {
+                    day: {
+                        $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$updatedAt',
+                            timezone: 'Asia/Kolkata',
+                        },
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: '$day',
+                    completed: { $sum: 1 },
+                },
+            },
+            { $sort: { _id: 1 } },
+        ])
+        : [];
+
+    const rawCancelled = appointmentIds.length
+        ? await Booking.aggregate([
+            {
+                $match: {
+                    appointmentId: { $in: appointmentIds },
+                    updatedAt: { $gte: start, $lte: end },
+                    $or: [
+                        { status: 'cancelled' },
+                        { markedBy: 'absent' },
+                    ],
+                },
+            },
+            {
+                $project: {
+                    day: {
+                        $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$updatedAt',
+                            timezone: 'Asia/Kolkata',
+                        },
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: '$day',
+                    cancelled: { $sum: 1 },
+                },
+            },
+            { $sort: { _id: 1 } },
+        ])
+        : [];
+
+    const bookingsMap = new Map(rawBookings.map((item) => [String(item._id), Number(item.bookings || 0)]));
+    const completedMap = new Map(rawCompleted.map((item) => [String(item._id), Number(item.completed || 0)]));
+    const cancelledMap = new Map(rawCancelled.map((item) => [String(item._id), Number(item.cancelled || 0)]));
+
+    const dailyBookings = [];
+    for (let i = 0; i < windowDays; i += 1) {
+        const day = new Date(start);
+        day.setDate(start.getDate() + i);
+        const key = day.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        dailyBookings.push({
+            date: key,
+            label: day.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+            bookings: bookingsMap.get(key) || 0,
+            completed: completedMap.get(key) || 0,
+            cancelled: cancelledMap.get(key) || 0,
+        });
+    }
+
+    const totals = dailyBookings.reduce((acc, row) => {
+        acc.bookings += row.bookings;
+        acc.completed += row.completed;
+        acc.cancelled += row.cancelled;
+        return acc;
+    }, { bookings: 0, completed: 0, cancelled: 0 });
+
+    return {
+        days: windowDays,
+        totalBookingsInWindow: totals.bookings,
+        totalCompletedInWindow: totals.completed,
+        totalCancelledInWindow: totals.cancelled,
+        dailyBookings,
+    };
+};
+
 const getDoctorPatientDetails = async (doctorId, patientId) => {
     const patient = await Patient.findById(patientId).select('name email phone role').lean();
     if (!patient) {
@@ -1076,6 +1219,7 @@ module.exports = {
     // Doctor services
     createAppointment,
     getDoctorAppointments,
+    getDoctorAnalytics,
     getDoctorConsultedPatients,
     getDoctorPatientDetails,
     getAppointmentDetails,

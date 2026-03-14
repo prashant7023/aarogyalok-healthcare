@@ -2,6 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import useAuthStore from '../auth/authStore';
 import { Activity, Pill, Users, FileText, Clock3, TrendingUp, User, Search } from 'lucide-react';
 import api from '../../shared/utils/api';
+import {
+    ResponsiveContainer,
+    RadialBarChart,
+    RadialBar,
+    PolarAngleAxis,
+    BarChart,
+    Bar,
+    CartesianGrid,
+    XAxis,
+    YAxis,
+    Tooltip,
+    LineChart,
+    Line,
+} from 'recharts';
 
 const SEV_SCORE = { mild: 1, moderate: 2, severe: 3, critical: 3 };
 const toNum = (val, fallback = 0) => (Number.isFinite(Number(val)) ? Number(val) : fallback);
@@ -20,27 +34,21 @@ const getHighestSeverity = (reports = []) => {
 
 function CircularStat({ label, value, subtitle, color = '#2563eb' }) {
     const safe = clamp(Number(value) || 0, 0, 100);
-    const radius = 32;
-    const circumference = 2 * Math.PI * radius;
-    const dash = (safe / 100) * circumference;
+    const chartData = [{ name: label, value: safe }];
 
     return (
         <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <svg width="78" height="78" viewBox="0 0 78 78" aria-hidden="true">
-                <circle cx="39" cy="39" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="8" />
-                <circle
-                    cx="39"
-                    cy="39"
-                    r={radius}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={`${dash} ${circumference - dash}`}
-                    transform="rotate(-90 39 39)"
-                />
-                <text x="39" y="43" textAnchor="middle" fontSize="14" fontWeight="700" fill="#0f172a">{safe}%</text>
-            </svg>
+            <div style={{ width: 78, height: 78, position: 'relative', flexShrink: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                    <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" data={chartData} startAngle={90} endAngle={-270}>
+                        <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                        <RadialBar dataKey="value" cornerRadius={10} fill={color} background={{ fill: '#e2e8f0' }} isAnimationActive animationDuration={900} />
+                    </RadialBarChart>
+                </ResponsiveContainer>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                    {safe}%
+                </div>
+            </div>
             <div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.2rem' }}>{label}</div>
                 <div style={{ fontSize: '1rem', fontWeight: 700 }}>{subtitle}</div>
@@ -50,54 +58,35 @@ function CircularStat({ label, value, subtitle, color = '#2563eb' }) {
 }
 
 function BarTrend({ title, items = [], color = '#2563eb' }) {
-    const max = Math.max(...items.map((x) => x.value), 1);
     return (
-        <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.8rem' }}>
+        <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.8rem', minHeight: 200 }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginBottom: '0.5rem' }}>{title}</div>
-            <div style={{ display: 'grid', gap: '0.45rem' }}>
-                {items.map((it) => (
-                    <div key={it.label}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.18rem' }}>
-                            <span>{it.label}</span>
-                            <strong>{it.value}</strong>
-                        </div>
-                        <div style={{ width: '100%', height: '7px', borderRadius: '999px', background: '#e2e8f0' }}>
-                            <div style={{ width: `${(it.value / max) * 100}%`, height: '100%', borderRadius: '999px', background: color }} />
-                        </div>
-                    </div>
-                ))}
+            <div style={{ width: '100%', height: 150 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={items} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={0} angle={-15} textAnchor="end" height={42} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#94a3b8' }} width={26} />
+                        <Tooltip cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }} />
+                        <Bar dataKey="value" fill={color} radius={[6, 6, 0, 0]} isAnimationActive animationDuration={850} />
+                    </BarChart>
+                </ResponsiveContainer>
             </div>
         </div>
     );
 }
 
 function AnalyticsLineChart({ title, subtitle, labels = [], series = [] }) {
-    const width = 760;
-    const height = 240;
-    const left = 42;
-    const right = 16;
-    const top = 20;
-    const bottom = 34;
-    const chartW = width - left - right;
-    const chartH = height - top - bottom;
-
-    const allValues = series.flatMap((s) => s.data || []);
-    const maxVal = Math.max(...allValues, 1);
-    const steps = 4;
-
-    const x = (i) => left + (labels.length <= 1 ? 0 : (i / (labels.length - 1)) * chartW);
-    const y = (v) => top + chartH - (v / maxVal) * chartH;
-
-    const linePath = (data = []) => data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`).join(' ');
-    const areaPath = (data = []) => {
-        if (!data.length) return '';
-        const startX = x(0);
-        const endX = x(data.length - 1);
-        return `${linePath(data)} L ${endX} ${top + chartH} L ${startX} ${top + chartH} Z`;
-    };
+    const chartData = labels.map((label, index) => {
+        const row = { label };
+        series.forEach((s) => {
+            row[s.key] = Number(s?.data?.[index] || 0);
+        });
+        return row;
+    });
 
     return (
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.85rem 0.9rem' }}>
+        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.85rem 0.9rem', minHeight: 300 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '0.7rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
                 <div>
                     <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>{title}</div>
@@ -111,34 +100,29 @@ function AnalyticsLineChart({ title, subtitle, labels = [], series = [] }) {
                     ))}
                 </div>
             </div>
-
-            <div style={{ width: '100%', overflowX: 'auto' }}>
-                <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', minWidth: 560, display: 'block' }} role="img" aria-label={title}>
-                    {[...Array(steps + 1)].map((_, i) => {
-                        const val = (maxVal / steps) * i;
-                        const yy = y(val);
-                        return (
-                            <g key={i}>
-                                <line x1={left} y1={yy} x2={width - right} y2={yy} stroke="#e2e8f0" strokeWidth="1" />
-                                <text x={left - 8} y={yy + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{Math.round(val)}</text>
-                            </g>
-                        );
-                    })}
-
-                    {series.map((s) => (
-                        <g key={s.key}>
-                            <path d={areaPath(s.data)} fill={s.color} opacity="0.12" />
-                            <path d={linePath(s.data)} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinecap="round" />
-                            {(s.data || []).map((v, i) => (
-                                <circle key={`${s.key}-${i}`} cx={x(i)} cy={y(v)} r="2.6" fill={s.color} />
-                            ))}
-                        </g>
-                    ))}
-
-                    {labels.map((lb, i) => (
-                        <text key={lb + i} x={x(i)} y={height - 10} textAnchor="middle" fontSize="10" fill="#94a3b8">{lb}</text>
-                    ))}
-                </svg>
+            <div style={{ width: '100%', height: 250 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 10, right: 6, left: 6, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} width={30} />
+                        <Tooltip />
+                        {series.map((s) => (
+                            <Line
+                                key={s.key}
+                                type="monotone"
+                                dataKey={s.key}
+                                stroke={s.color}
+                                strokeWidth={2.6}
+                                dot={{ r: 3 }}
+                                activeDot={{ r: 5 }}
+                                isAnimationActive
+                                animationDuration={900}
+                                animationEasing="ease-out"
+                            />
+                        ))}
+                    </LineChart>
+                </ResponsiveContainer>
             </div>
         </div>
     );
@@ -175,6 +159,7 @@ export default function DashboardPage() {
         remindersToday: [],
         records: [],
         queueData: [],
+        doctorAnalytics: null,
     });
     const [patientEmail, setPatientEmail] = useState('');
     const [patientSearchLoading, setPatientSearchLoading] = useState(false);
@@ -193,14 +178,18 @@ export default function DashboardPage() {
                 const queueRequest = isEndUserRole
                     ? api.get('/queue/my-bookings')
                     : (isProviderRole ? api.get('/queue/doctor/appointments') : api.get('/queue/my-bookings'));
+                const doctorAnalyticsRequest = isProviderRole
+                    ? api.get('/queue/doctor/analytics?days=14')
+                    : Promise.resolve({ data: { data: null } });
 
-                const [symptomsRes, medsRes, adherenceRes, remindersRes, recordsRes, queueRes] = await Promise.allSettled([
+                const [symptomsRes, medsRes, adherenceRes, remindersRes, recordsRes, queueRes, doctorAnalyticsRes] = await Promise.allSettled([
                     api.get('/symptom/history'),
                     api.get('/medication'),
                     api.get('/medication/adherence?days=7'),
                     api.get('/medication/reminders/today'),
                     api.get('/records'),
                     queueRequest,
+                    doctorAnalyticsRequest,
                 ]);
 
                 const symptomHistory = symptomsRes.status === 'fulfilled' ? (symptomsRes.value?.data?.data || []) : [];
@@ -269,6 +258,7 @@ export default function DashboardPage() {
                     remindersToday,
                     records,
                     queueData: queueRes.status === 'fulfilled' ? (queueRes.value?.data?.data || []) : [],
+                    doctorAnalytics: doctorAnalyticsRes.status === 'fulfilled' ? (doctorAnalyticsRes.value?.data?.data || null) : null,
                 });
             } catch (_) {
                 if (!mounted) return;
@@ -535,26 +525,43 @@ export default function DashboardPage() {
 
         const labels = [];
         const bookingDaily = [];
-        const nowDay = new Date();
-        nowDay.setHours(0, 0, 0, 0);
-        const start14 = new Date(nowDay);
-        start14.setDate(start14.getDate() - 13);
+        const completedDaily = [];
+        const cancelledDaily = [];
+        const apiDaily = Array.isArray(reportData.doctorAnalytics?.dailyBookings)
+            ? reportData.doctorAnalytics.dailyBookings
+            : [];
 
-        const map = new Map();
-        reportData.queueData.forEach((x) => {
-            const d = new Date(x?.appointmentDate || x?.createdAt || 0);
-            d.setHours(0, 0, 0, 0);
-            const key = d.getTime();
-            if (!Number.isFinite(key) || key < start14.getTime()) return;
-            map.set(key, (map.get(key) || 0) + 1);
-        });
+        if (apiDaily.length > 0) {
+            apiDaily.forEach((row) => {
+                labels.push(String(row?.label || ''));
+                bookingDaily.push(toNum(row?.bookings));
+                completedDaily.push(toNum(row?.completed));
+                cancelledDaily.push(toNum(row?.cancelled));
+            });
+        } else {
+            const nowDay = new Date();
+            nowDay.setHours(0, 0, 0, 0);
+            const start14 = new Date(nowDay);
+            start14.setDate(start14.getDate() - 13);
 
-        for (let i = 0; i < 14; i += 1) {
-            const d = new Date(start14);
-            d.setDate(start14.getDate() + i);
-            const key = d.getTime();
-            labels.push(d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }));
-            bookingDaily.push(map.get(key) || 0);
+            const map = new Map();
+            reportData.queueData.forEach((x) => {
+                const d = new Date(x?.appointmentDate || x?.createdAt || 0);
+                d.setHours(0, 0, 0, 0);
+                const key = d.getTime();
+                if (!Number.isFinite(key) || key < start14.getTime()) return;
+                map.set(key, (map.get(key) || 0) + 1);
+            });
+
+            for (let i = 0; i < 14; i += 1) {
+                const d = new Date(start14);
+                d.setDate(start14.getDate() + i);
+                const key = d.getTime();
+                labels.push(d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }));
+                bookingDaily.push(map.get(key) || 0);
+                completedDaily.push(0);
+                cancelledDaily.push(0);
+            }
         }
 
         return {
@@ -562,6 +569,8 @@ export default function DashboardPage() {
             completedPct,
             labels,
             bookingDaily,
+            completedDaily,
+            cancelledDaily,
             bars: [
                 { label: 'Active', value: active },
                 { label: 'Completed', value: completed },
@@ -569,7 +578,7 @@ export default function DashboardPage() {
                 { label: 'Tokens Issued', value: analytics.queueSecondary },
             ],
         };
-    }, [analytics, reportData.queueData]);
+    }, [analytics, reportData.queueData, reportData.doctorAnalytics]);
 
     const patientConsultationBars = useMemo(() => {
         const consultations = Array.isArray(patientReport?.consultations) ? patientReport.consultations : [];
@@ -712,7 +721,7 @@ export default function DashboardPage() {
                     <div style={{ marginTop: '0.75rem' }}>
                         <AnalyticsLineChart
                             title="Doctor booking trend (last 14 days)"
-                            subtitle="Appointments activity day by day"
+                            subtitle="Bookings, done, and cancelled activity day by day"
                             labels={loading ? Array.from({ length: 14 }, (_, i) => `D${i + 1}`) : doctorGraphData.labels}
                             series={[
                                 {
@@ -720,6 +729,18 @@ export default function DashboardPage() {
                                     label: 'Bookings',
                                     color: '#2563eb',
                                     data: loading ? Array(14).fill(0) : doctorGraphData.bookingDaily,
+                                },
+                                {
+                                    key: 'done',
+                                    label: 'Done',
+                                    color: '#16a34a',
+                                    data: loading ? Array(14).fill(0) : doctorGraphData.completedDaily,
+                                },
+                                {
+                                    key: 'cancelled',
+                                    label: 'Cancelled',
+                                    color: '#dc2626',
+                                    data: loading ? Array(14).fill(0) : doctorGraphData.cancelledDaily,
                                 },
                             ]}
                         />
