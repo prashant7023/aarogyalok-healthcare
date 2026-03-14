@@ -86,6 +86,15 @@ const bookingSchema = new mongoose.Schema(
                 type: Date,
                 default: null,
             }
+        },
+        doctorPrescription: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        prescribedMedicines: {
+            type: [String],
+            default: []
         }
     },
     { timestamps: true }

@@ -23,6 +23,11 @@ export default function AppointmentDetails() {
         description: '',
     });
     const [submittingOffline, setSubmittingOffline] = useState(false);
+    const [doneModalBooking, setDoneModalBooking] = useState(null);
+    const [prescription, setPrescription] = useState('');
+    const [medicineInput, setMedicineInput] = useState('');
+    const [medicines, setMedicines] = useState([]);
+    const [submittingDone, setSubmittingDone] = useState(false);
 
     useEffect(() => {
         fetchDetails();
@@ -83,6 +88,56 @@ export default function AppointmentDetails() {
             fetchDetails();
         } catch (e) {
             alert(e.response?.data?.message || 'Failed to update patient status');
+        }
+    };
+
+    const openDoneModal = (booking) => {
+        setDoneModalBooking(booking);
+        setPrescription(booking?.doctorPrescription || '');
+        setMedicines(Array.isArray(booking?.prescribedMedicines) ? booking.prescribedMedicines : []);
+        setMedicineInput('');
+    };
+
+    const closeDoneModal = () => {
+        if (submittingDone) return;
+        setDoneModalBooking(null);
+        setPrescription('');
+        setMedicineInput('');
+        setMedicines([]);
+    };
+
+    const handleAddMedicine = () => {
+        const value = medicineInput.trim();
+        if (!value) return;
+        setMedicines((prev) => [...prev, value]);
+        setMedicineInput('');
+    };
+
+    const handleRemoveMedicine = (indexToRemove) => {
+        setMedicines((prev) => prev.filter((_, index) => index !== indexToRemove));
+    };
+
+    const handleCompleteWithPrescription = async () => {
+        if (!doneModalBooking?._id) return;
+
+        if (!prescription.trim() && medicines.length === 0) {
+            alert('Please add prescription notes or at least one medicine');
+            return;
+        }
+
+        setSubmittingDone(true);
+        try {
+            await api.patch(`/queue/doctor/bookings/${doneModalBooking._id}/mark`, {
+                markStatus: 'completed',
+                prescription,
+                medicines,
+            });
+            closeDoneModal();
+            fetchDetails();
+        } catch (e) {
+            alert(e.response?.data?.message || 'Failed to complete consultation');
+        } finally {
+            setSubmittingDone(false);
         }
     };
 
@@ -284,7 +339,7 @@ export default function AppointmentDetails() {
                                                         Cancel
                                                     </button>
                                                     <button
-                                                        onClick={() => handleMark(booking._id, 'completed')}
+                                                        onClick={() => openDoneModal(booking)}
                                                         style={{ fontSize: '0.75rem', padding: '0.28rem 0.65rem', background: '#008060', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
                                                     >
                                                         Done ✓
@@ -298,6 +353,107 @@ export default function AppointmentDetails() {
                     </div>
                 )}
             </div>
+
+            {doneModalBooking && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        zIndex: 999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1rem',
+                    }}
+                >
+                    <div style={{ width: 'min(620px, 100%)', background: '#fff', borderRadius: '10px', border: '1px solid #e1e3e5', padding: '1rem' }}>
+                        <h3 style={{ margin: 0, marginBottom: '0.7rem', fontSize: '1rem', color: '#0f172a' }}>
+                            Complete Consultation — {doneModalBooking.patientName}
+                        </h3>
+
+                        <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>
+                                Prescription / Medical Notes
+                            </label>
+                            <textarea
+                                className="input"
+                                rows={4}
+                                placeholder="Write prescription or treatment notes"
+                                value={prescription}
+                                onChange={(e) => setPrescription(e.target.value)}
+                                style={{ width: '100%', resize: 'vertical' }}
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>
+                                Medicines
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                    className="input"
+                                    placeholder="Enter medicine name"
+                                    value={medicineInput}
+                                    onChange={(e) => setMedicineInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAddMedicine();
+                                        }
+                                    }}
+                                    style={{ flex: 1 }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleAddMedicine}
+                                    style={{ border: 'none', borderRadius: '6px', background: '#005bd3', color: '#fff', padding: '0.45rem 0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                                >
+                                    + Add
+                                </button>
+                            </div>
+
+                            {medicines.length > 0 && (
+                                <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    {medicines.map((medicine, index) => (
+                                        <span
+                                            key={`${medicine}-${index}`}
+                                            style={{ background: '#ebf4ff', color: '#005bd3', borderRadius: '999px', padding: '0.22rem 0.55rem', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                        >
+                                            {medicine}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveMedicine(index)}
+                                                style={{ border: 'none', background: 'transparent', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                                            >
+                                                ×
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                            <button
+                                type="button"
+                                onClick={closeDoneModal}
+                                style={{ border: '1px solid #e1e3e5', background: '#fff', color: '#475569', borderRadius: '6px', padding: '0.45rem 0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCompleteWithPrescription}
+                                disabled={submittingDone}
+                                style={{ border: 'none', background: '#008060', color: '#fff', borderRadius: '6px', padding: '0.45rem 0.8rem', fontWeight: 700, cursor: submittingDone ? 'not-allowed' : 'pointer' }}
+                            >
+                                {submittingDone ? 'Saving...' : 'Done'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

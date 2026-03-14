@@ -583,7 +583,7 @@ const getAppointmentDetails = async (appointmentId, doctorId) => {
 };
 
 // Mark patient attendance/completion
-const markPatient = async (bookingId, doctorId, markStatus, io) => {
+const markPatient = async (bookingId, doctorId, markStatus, treatmentData = {}, io) => {
     const booking = await Booking.findById(bookingId).populate('appointmentId');
     
     if (!booking) {
@@ -596,9 +596,24 @@ const markPatient = async (bookingId, doctorId, markStatus, io) => {
 
     booking.markedBy = markStatus;
     if (markStatus === 'completed') {
+        const prescription = typeof treatmentData.prescription === 'string'
+            ? treatmentData.prescription.trim()
+            : '';
+        const medicines = Array.isArray(treatmentData.medicines)
+            ? treatmentData.medicines
+                .map((item) => String(item || '').trim())
+                .filter(Boolean)
+            : [];
+
+        if (!prescription && medicines.length === 0) {
+            throw new AppError('Add prescription notes or at least one medicine before marking done', 400);
+        }
+
         booking.status = 'completed';
         booking.estimatedTurnTime = null;
         booking.estimatedWaitMinutes = null;
+        booking.doctorPrescription = prescription;
+        booking.prescribedMedicines = medicines;
     }
 
     if (markStatus === 'absent') {
@@ -616,6 +631,8 @@ const markPatient = async (bookingId, doctorId, markStatus, io) => {
             tokenNumber: booking.tokenNumber,
             status: booking.status,
             markedBy: booking.markedBy,
+            doctorPrescription: booking.doctorPrescription,
+            prescribedMedicines: booking.prescribedMedicines,
         });
     }
 
