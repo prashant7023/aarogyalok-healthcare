@@ -5,37 +5,7 @@ const Appointment = require('../queue/appointment.model');
 const { sendPushToTokens } = require('../../config/firebase.admin');
 
 const SEVERITY_ORDER = { mild: 1, moderate: 2, severe: 3, critical: 3 };
-const GENERAL_SPECIALIST_FALLBACK = /(general|primary|family|internal|medicine)/i;
-const SPECIALIZATION_ALIASES = {
-    cardiologist: 'cardiology',
-    cardiac: 'cardiology',
-    dermatologist: 'dermatology',
-    neurologist: 'neurology',
-    ophthalmologist: 'ophthalmology',
-    orthopedist: 'orthopedics',
-    orthopedic: 'orthopedics',
-    pulmonologist: 'pulmonology',
-    gastroenterologist: 'gastroenterology',
-    pediatrician: 'pediatrics',
-    gynecologist: 'gynecology',
-    'general practitioner': 'general physician',
-    'primary care physician': 'general physician',
-};
-
-const SPECIALIST_HINTS = {
-    'primary care physician': ['general physician', 'general medicine', 'family medicine', 'internal medicine', 'primary care'],
-    'general physician': ['general physician', 'general medicine', 'family medicine', 'internal medicine', 'primary care'],
-    cardiology: ['cardiology', 'cardiologist', 'heart'],
-    dermatology: ['dermatology', 'dermatologist', 'skin'],
-    neurology: ['neurology', 'neurologist', 'brain', 'nerve'],
-    ent: ['ent', 'ear', 'nose', 'throat', 'otolaryngology'],
-    ophthalmology: ['ophthalmology', 'ophthalmologist', 'eye'],
-    orthopedics: ['orthopedics', 'orthopedic', 'bone', 'joint'],
-    pediatrics: ['pediatrics', 'pediatrician', 'child'],
-    gynecology: ['gynecology', 'gynecologist'],
-    gastroenterology: ['gastroenterology', 'gastroenterologist', 'stomach', 'gut'],
-    respiratory: ['respiratory', 'pulmonology', 'pulmonologist', 'lung', 'chest'],
-};
+const NEARBY_HOSPITAL_CONTACT = '7014094761';
 
 const toSeverity = (value) => String(value || 'mild').toLowerCase();
 
@@ -49,15 +19,10 @@ const specializationRegex = (recommendedSpecialist = '', diseaseCategory = '') =
     const source = `${recommendedSpecialist} ${diseaseCategory}`.toLowerCase().trim();
     if (!source) return null;
 
-    const terms = new Set(source.split(/\s+/).filter(Boolean));
-
-    Object.entries(SPECIALIZATION_ALIASES).forEach(([from, to]) => {
-        if (source.includes(from)) {
-            to.split(/\s+/).forEach((part) => {
-                if (part) terms.add(part);
-            });
-        }
-    });
+    const terms = new Set(source
+        .split(/\s+/)
+        .filter((t) => t.length > 2)
+        .filter((t) => !['doctor', 'specialist', 'physician'].includes(t)));
 
     const escaped = Array.from(terms)
         .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
@@ -68,44 +33,98 @@ const specializationRegex = (recommendedSpecialist = '', diseaseCategory = '') =
 
 const normalizeText = (value) => String(value || '').toLowerCase().trim();
 
-const isGeneralPrimaryIntent = (aiResult) => {
+const aiSpecialistRegex = (aiResult) => {
     const specialist = normalizeText(aiResult?.recommended_specialist);
-    return /primary care physician|general physician|general medicine|family medicine|internal medicine/.test(specialist);
+    if (!specialist) return null;
+
+    const terms = specialist
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .map((x) => x.trim())
+        .filter((x) => x.length > 2)
+        .filter((x) => !['doctor', 'specialist', 'physician', 'medicine', 'care'].includes(x));
+
+    if (!terms.length) return null;
+    return new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'i');
 };
 
-const getSpecializationKeywords = (aiResult) => {
-    const specialist = normalizeText(aiResult?.recommended_specialist);
-    const category = normalizeText(aiResult?.disease_category);
-    const raw = `${specialist} ${category}`;
-
-    const hinted = Object.entries(SPECIALIST_HINTS)
-        .filter(([k]) => raw.includes(k))
-        .flatMap(([, keywords]) => keywords);
-
-    const basic = raw
+const tokenizeSpecialization = (value) =>
+    normalizeText(value)
+        .replace(/[^a-z0-9\s]/g, ' ')
         .split(/\s+/)
-        .filter((k) => k.length > 3)
-        .filter((k) => !['care', 'physician', 'doctor', 'medicine'].includes(k));
+        .filter((token) => token.length > 2)
+        .filter((token) => !['doctor', 'specialist', 'physician', 'medicine', 'care'].includes(token));
 
-    return [...new Set([...hinted, ...basic])];
+const extractClinicalKeywords = (aiResult, symptoms = []) => {
+    const possibleDiseases = Array.isArray(aiResult?.possible_diseases) ? aiResult.possible_diseases : [];
+    const detailNames = Array.isArray(aiResult?.condition_details)
+        ? aiResult.condition_details.map((x) => x?.name).filter(Boolean)
+        : [];
+    const causes = Array.isArray(aiResult?.condition_details)
+        ? aiResult.condition_details.flatMap((x) => Array.isArray(x?.common_causes) ? x.common_causes : [])
+        : [];
+
+    const combined = [
+        ...possibleDiseases,
+        ...detailNames,
+        ...causes,
+        ...(Array.isArray(symptoms) ? symptoms : []),
+    ];
+
+    return [...new Set(combined.flatMap((x) => tokenizeSpecialization(x)))];
+};
+
+const getSpecializationKeywords = (aiResult, symptoms = []) => {
+    const clinicalKeywords = extractClinicalKeywords(aiResult, symptoms);
+    const specialistTokens = tokenizeSpecialization(aiResult?.recommended_specialist);
+    const specialistOverlaps = specialistTokens.some((t) => clinicalKeywords.includes(t));
+
+    return specialistOverlaps
+        ? [...new Set([...clinicalKeywords, ...specialistTokens])]
+        : clinicalKeywords;
 };
 
 const scoreDoctorRelevance = (doctor, keywords) => {
-    const spec = normalizeText(doctor?.specialization);
+    const spec = normalizeText(doctor?.specialization || '');
     if (!spec || keywords.length === 0) return 0;
 
+    const specTokens = new Set(tokenizeSpecialization(spec));
+    const keywordSet = new Set(keywords);
+
+    if (spec === normalizeText(Array.from(keywordSet).join(' '))) return 100;
+
     let score = 0;
-    for (const key of keywords) {
-        if (spec.includes(key)) {
-            score += key.length > 8 ? 5 : 3;
+    for (const key of keywordSet) {
+        if (specTokens.has(key)) {
+            score += 10;
+        } else if (spec.includes(key)) {
+            score += 4;
         }
     }
 
-    if (GENERAL_SPECIALIST_FALLBACK.test(spec) && keywords.some((k) => GENERAL_SPECIALIST_FALLBACK.test(k))) {
-        score += 3;
-    }
+    const overlap = Array.from(specTokens).filter((t) => keywordSet.has(t)).length;
+    score += overlap * 2;
 
     return score;
+};
+
+const hasMeaningfulSpecialistMatch = (aiResult, symptoms = []) => {
+    const specialistTokens = tokenizeSpecialization(aiResult?.recommended_specialist);
+    if (specialistTokens.length === 0) return false;
+
+    const clinicalKeywords = extractClinicalKeywords(aiResult, symptoms);
+    if (clinicalKeywords.length === 0) return false;
+
+    return specialistTokens.some((t) => clinicalKeywords.includes(t));
+};
+
+const regexFromKeywords = (keywords = []) => {
+    const escaped = keywords
+        .filter((k) => typeof k === 'string' && k.trim().length > 2)
+        .map((k) => k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+    if (!escaped.length) return null;
+    return new RegExp(escaped.join('|'), 'i');
 };
 
 const estimateWaitMinutes = (appointment) => {
@@ -124,7 +143,7 @@ const getStartOfToday = () => {
 
 const buildProvidersFromAppointments = async (aiResult, options = {}) => {
     const startOfToday = getStartOfToday();
-    const specPattern = specializationRegex(aiResult?.recommended_specialist, aiResult?.disease_category);
+    const specPattern = aiSpecialistRegex(aiResult);
     const ignoreSpecialization = Boolean(options.ignoreSpecialization);
 
     const query = {
@@ -161,30 +180,20 @@ const buildProvidersFromAppointments = async (aiResult, options = {}) => {
     return Array.from(map.values()).slice(0, 5);
 };
 
-const findRecommendedProviders = async (aiResult) => {
-    const doctors = await Doctor.find({ isActive: true })
-        .select('name specialization clinicAddress rating fcmTokens')
-        .lean();
-
-    // Strong rule: if AI says primary/general physician, only show general-primary tracks.
-    if (isGeneralPrimaryIntent(aiResult)) {
-        const generalOnly = doctors
-            .filter((doc) => GENERAL_SPECIALIST_FALLBACK.test(doc.specialization || ''))
-            .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-            .slice(0, 5);
-
-        if (generalOnly.length > 0) {
-            return { providers: generalOnly, specialistMatchFound: true, providerSource: 'doctor-specialization-general' };
-        }
+const findRecommendedProviders = async (aiResult, doctors = [], symptoms = []) => {
+    const specPattern = aiSpecialistRegex(aiResult);
+    if (!specPattern) {
+        return { providers: [], specialistMatchFound: false, providerSource: 'ai-specialist-missing' };
     }
 
-    const keywords = getSpecializationKeywords(aiResult);
+    const keywords = tokenizeSpecialization(aiResult?.recommended_specialist);
     const ranked = doctors
+        .filter((doc) => specPattern.test(String(doc?.specialization || '')))
         .map((doc) => ({
             ...doc,
             _score: scoreDoctorRelevance(doc, keywords),
         }))
-        .filter((doc) => doc._score >= 3)
+        .filter((doc) => doc._score >= 1)
         .sort((a, b) => (b._score - a._score) || ((b.rating || 0) - (a.rating || 0)))
         .slice(0, 5)
         .map(({ _score, ...doc }) => doc);
@@ -193,33 +202,21 @@ const findRecommendedProviders = async (aiResult) => {
         return { providers: ranked, specialistMatchFound: true, providerSource: 'doctor-specialization-ranked' };
     }
 
-    // Prefer primary/general doctors as safe fallback rather than unrelated specialists.
-    const generalFallback = doctors
-        .filter((doc) => GENERAL_SPECIALIST_FALLBACK.test(doc.specialization || ''))
-        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-        .slice(0, 5);
-
-    if (generalFallback.length > 0) {
-        return { providers: generalFallback, specialistMatchFound: false, providerSource: 'doctor-specialization-general-fallback' };
-    }
-
     // Fallback 1: derive providers from appointment records with specialization match.
-    const appointmentMatched = await buildProvidersFromAppointments(aiResult);
+    const appointmentMatched = await buildProvidersFromAppointments(aiResult, { symptoms });
     if (appointmentMatched.length > 0) {
         return { providers: appointmentMatched, specialistMatchFound: true, providerSource: 'appointment-specialization-match' };
     }
 
-    // Fallback 2: show currently available providers even if specialization does not match.
-    const appointmentAny = await buildProvidersFromAppointments(aiResult, { ignoreSpecialization: true });
     return {
-        providers: appointmentAny,
+        providers: [],
         specialistMatchFound: false,
-        providerSource: appointmentAny.length > 0 ? 'appointment-any-available' : 'none',
+        providerSource: 'no-ai-specialist-provider',
     };
 };
 
-const findSuggestedAppointments = async (aiResult, providerIds = []) => {
-    const specPattern = specializationRegex(aiResult?.recommended_specialist, aiResult?.disease_category);
+const findSuggestedAppointments = async (aiResult, providerIds = [], options = {}) => {
+    const specPattern = aiSpecialistRegex(aiResult);
     const startOfToday = getStartOfToday();
 
     const query = {
@@ -233,6 +230,10 @@ const findSuggestedAppointments = async (aiResult, providerIds = []) => {
 
     if (!query.doctorId && specPattern) {
         query.specialization = specPattern;
+    }
+
+    if (!query.doctorId && !specPattern) {
+        return [];
     }
 
     const appointments = await Appointment.find(query)
@@ -344,17 +345,33 @@ const analyze = async (userId, symptomsInput, options = {}) => {
         throw new Error('Please provide at least one symptom');
     }
 
+    const doctors = await Doctor.find({ isActive: true })
+        .select('name specialization clinicAddress rating fcmTokens')
+        .lean();
+
     const aiResult = await analyzeSymptoms(symptoms);
     const abnormalCaseDetected = isAbnormalCase(aiResult);
-    const providerDecision = await findRecommendedProviders(aiResult);
+
+    // Keep AI output intact for UI/record transparency.
+    // Use a routing clone for provider matching fallback logic only.
+    const routingAiResult = {
+        ...aiResult,
+        recommended_specialist: aiResult?.recommended_specialist || 'General Physician',
+    };
+
+    const providerDecision = await findRecommendedProviders(routingAiResult, doctors, symptoms);
     let providers = providerDecision.providers || [];
-    let suggestedAppointments = await findSuggestedAppointments(aiResult, providers.map((doc) => doc._id));
+    let suggestedAppointments = await findSuggestedAppointments(routingAiResult, providers.map((doc) => doc._id), { symptoms });
     let specialistMatchFound = Boolean(providerDecision.specialistMatchFound);
     let providerSource = providerDecision.providerSource || 'none';
 
+    const matchedSpecialist = specialistMatchFound && providers.length > 0 && providers[0]?.specialization
+        ? providers[0].specialization
+        : null;
+
     // If matched doctors have no active slots, fallback to appointment-specialization pipeline.
     if (suggestedAppointments.length === 0) {
-        const appointmentFallback = await findSuggestedAppointments(aiResult, []);
+        const appointmentFallback = await findSuggestedAppointments(routingAiResult, [], { symptoms });
         if (appointmentFallback.length > 0) {
             suggestedAppointments = appointmentFallback;
             providers = providersFromAppointments(appointmentFallback);
@@ -372,7 +389,8 @@ const analyze = async (userId, symptomsInput, options = {}) => {
             shouldJoinQueue: true,
             reason: suggestedAppointments.length > 0
                 ? 'Doctor consultation is recommended. Queue token can be generated from available appointments.'
-                : 'Doctor consultation is recommended. No immediate appointment was found; try provider contact directly.',
+                : 'No doctor available for the AI-recommended specialist right now. Please call a nearby hospital for assistance.',
+            contactNumber: suggestedAppointments.length > 0 ? '' : NEARBY_HOSPITAL_CONTACT,
         };
 
     if (!specialistMatchFound && providers.length > 0) {
@@ -380,7 +398,9 @@ const analyze = async (userId, symptomsInput, options = {}) => {
     }
 
     if (!specialistMatchFound && providers.length === 0) {
-        queueRecommendation.reason = 'No matching specialist or active appointments available right now. Please try again later or contact hospital support.';
+        queueRecommendation.shouldJoinQueue = false;
+        queueRecommendation.reason = 'No doctor available for the AI-recommended specialist right now. Please call a nearby hospital.';
+        queueRecommendation.contactNumber = NEARBY_HOSPITAL_CONTACT;
     }
 
     const report = await SymptomReport.create({
@@ -392,6 +412,8 @@ const analyze = async (userId, symptomsInput, options = {}) => {
             shouldShowHomeCare,
             diseaseCategory: aiResult?.disease_category || 'General Medicine',
             recommendedSpecialist: aiResult?.recommended_specialist || 'General Physician',
+            matchedSpecialist: matchedSpecialist || '',
+            specialistFromAI: aiResult?.recommended_specialist || 'General Physician',
             recommendedProviders: providers.map((doc) => ({
                 doctorId: doc._id,
                 name: doc.name,

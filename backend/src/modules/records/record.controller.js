@@ -56,6 +56,13 @@ const getPatientFullReport = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
+    if (req.user.role === 'doctor') {
+        const canAccess = await recordService.hasDoctorConsultedPatient(req.user._id, req.params.patientId);
+        if (!canAccess) {
+            return res.status(403).json({ success: false, message: 'You can access only patients consulted by you' });
+        }
+    }
+
     const report = await recordService.getPatientFullReport(req.params.patientId);
     sendSuccess(res, report, 'Patient report fetched');
 });

@@ -8,6 +8,7 @@ const SymptomReport = require('../symptom/symptom.model');
 const Booking = require('../queue/booking.model');
 const Appointment = require('../queue/appointment.model');
 const Patient = require('../auth/patient.model');
+const mongoose = require('mongoose');
 
 const summarizeText = (text = '') => {
     const clean = String(text).replace(/\s+/g, ' ').trim();
@@ -200,6 +201,54 @@ const deleteRecord = async (id, userId, isPrivileged) => {
     return HealthRecord.findOneAndDelete({ _id: id, userId });
 };
 
+const hasDoctorConsultedPatient = async (doctorId, patientId) => {
+    if (!doctorId || !patientId) return false;
+
+    const patient = await Patient.findById(patientId).lean();
+    if (!patient) return false;
+
+    const patientName = String(patient?.name || '').trim();
+    const escapedName = patientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const doctorObjectId = mongoose.Types.ObjectId.isValid(String(doctorId))
+        ? new mongoose.Types.ObjectId(String(doctorId))
+        : doctorId;
+
+    const matchPatient = patientName
+        ? {
+            $or: [
+                { patientId: patient._id },
+                { patientName: { $regex: `^${escapedName}$`, $options: 'i' } },
+            ],
+        }
+        : { patientId: patient._id };
+
+    const consulted = await Booking.aggregate([
+        { $match: matchPatient },
+        {
+            $lookup: {
+                from: 'appointments',
+                localField: 'appointmentId',
+                foreignField: '_id',
+                as: 'appointment',
+            },
+        },
+        { $unwind: '$appointment' },
+        {
+            $match: {
+                'appointment.doctorId': doctorObjectId,
+                $or: [
+                    { status: 'completed' },
+                    { markedBy: 'completed' },
+                    { 'appointment.status': 'completed' },
+                ],
+            },
+        },
+        { $limit: 1 },
+    ]);
+
+    return consulted.length > 0;
+};
+
 const getPatientFullReport = async (patientId) => {
     const patient = await Patient.findById(patientId).lean();
     const patientName = String(patient?.name || '').trim();
@@ -343,5 +392,6 @@ module.exports = {
     getRecords,
     getRecordById,
     deleteRecord,
+    hasDoctorConsultedPatient,
     getPatientFullReport,
 };
