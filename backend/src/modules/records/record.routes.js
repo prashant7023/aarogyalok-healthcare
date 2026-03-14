@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { createRecord, getRecords, getRecord, deleteRecord } = require('./record.controller');
+const { createRecord, getRecords, getRecord, deleteRecord, getPatientFullReport } = require('./record.controller');
 const { protect } = require('../../shared/middleware/auth.middleware');
 const Patient = require('../auth/patient.model');
 const multer = require('multer');
@@ -49,6 +49,7 @@ router.get('/search-patient', async (req, res) => {
 });
 
 router.post('/upload', upload.single('file'), createRecord);
+router.get('/patient-report/:patientId', getPatientFullReport);
 router.get('/', getRecords);
 router.get('/:id', getRecord);
 router.delete('/:id', deleteRecord);

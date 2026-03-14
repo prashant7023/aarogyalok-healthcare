@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import useAuthStore from '../auth/authStore';
-import { Activity, Pill, Users, FileText, Clock3, TrendingUp } from 'lucide-react';
+import { Activity, Pill, Users, FileText, Clock3, TrendingUp, User, Search } from 'lucide-react';
 import api from '../../shared/utils/api';
 
 const SEV_SCORE = { mild: 1, moderate: 2, severe: 3, critical: 3 };
@@ -146,6 +146,7 @@ function AnalyticsLineChart({ title, subtitle, labels = [], series = [] }) {
 
 export default function DashboardPage() {
     const { user } = useAuthStore();
+    const BASE_URL = String(api.defaults.baseURL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
     const role = String(user?.role || 'user').toLowerCase();
     const isEndUserRole = role === 'patient' || role === 'user';
     const isProviderRole = role === 'doctor' || role === 'admin' || role === 'hospital';
@@ -161,6 +162,11 @@ export default function DashboardPage() {
         records: 0,
         queuePrimary: 0,
         queueSecondary: 0,
+        doctorTotalAppointments: 0,
+        doctorActiveSessions: 0,
+        doctorCompletedSessions: 0,
+        doctorCancelledSessions: 0,
+        doctorAvgTokens: 0,
     });
     const [error, setError] = useState('');
     const [reportData, setReportData] = useState({
@@ -170,6 +176,12 @@ export default function DashboardPage() {
         records: [],
         queueData: [],
     });
+    const [patientEmail, setPatientEmail] = useState('');
+    const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+    const [patientSearchError, setPatientSearchError] = useState('');
+    const [selectedPatient, setSelectedPatient] = useState(null);
+    const [patientReport, setPatientReport] = useState(null);
+    const [patientReportLoading, setPatientReportLoading] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -196,7 +208,6 @@ export default function DashboardPage() {
                 const adherence = adherenceRes.status === 'fulfilled' ? (adherenceRes.value?.data?.data || {}) : {};
                 const remindersToday = remindersRes.status === 'fulfilled' ? (remindersRes.value?.data?.data || []) : [];
                 const records = recordsRes.status === 'fulfilled' ? (recordsRes.value?.data?.data || []) : [];
-
                 const sevenDaysAgo = new Date();
                 sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
                 sevenDaysAgo.setHours(0, 0, 0, 0);
@@ -207,6 +218,11 @@ export default function DashboardPage() {
 
                 let queuePrimary = 0;
                 let queueSecondary = 0;
+                let doctorTotalAppointments = 0;
+                let doctorActiveSessions = 0;
+                let doctorCompletedSessions = 0;
+                let doctorCancelledSessions = 0;
+                let doctorAvgTokens = 0;
 
                 if (queueRes.status === 'fulfilled') {
                     const queueData = queueRes.value?.data?.data || [];
@@ -214,8 +230,16 @@ export default function DashboardPage() {
                         queuePrimary = queueData.filter((b) => b?.status === 'confirmed').length;
                         queueSecondary = queueData.length;
                     } else {
+                        doctorTotalAppointments = queueData.length;
+                        doctorCompletedSessions = queueData.filter((apt) => String(apt?.status || '').toLowerCase() === 'completed').length;
+                        doctorCancelledSessions = queueData.filter((apt) => String(apt?.status || '').toLowerCase() === 'cancelled').length;
+                        doctorActiveSessions = Math.max(doctorTotalAppointments - doctorCompletedSessions - doctorCancelledSessions, 0);
+
+                        const totalTokens = queueData.reduce((sum, apt) => sum + toNum(apt?.totalTokensIssued), 0);
+                        doctorAvgTokens = doctorTotalAppointments ? Math.round((totalTokens / doctorTotalAppointments) * 10) / 10 : 0;
+
                         queuePrimary = queueData.length;
-                        queueSecondary = queueData.reduce((sum, apt) => sum + toNum(apt?.totalTokensIssued), 0);
+                        queueSecondary = totalTokens;
                     }
                 }
 
@@ -232,6 +256,11 @@ export default function DashboardPage() {
                     records: records.length,
                     queuePrimary,
                     queueSecondary,
+                    doctorTotalAppointments,
+                    doctorActiveSessions,
+                    doctorCompletedSessions,
+                    doctorCancelledSessions,
+                    doctorAvgTokens,
                 });
 
                 setReportData({
@@ -254,7 +283,48 @@ export default function DashboardPage() {
     }, [isEndUserRole, isProviderRole]);
 
     const cards = useMemo(() => {
-        const baseCards = [
+        if (isProviderRole) {
+            return [
+                {
+                    label: 'My Total Appointments',
+                    value: analytics.doctorTotalAppointments,
+                    hint: 'All sessions created by you',
+                    icon: Users,
+                },
+                {
+                    label: 'Appointments Managed',
+                    value: analytics.queuePrimary,
+                    hint: 'Live sessions in doctor queue',
+                    icon: Clock3,
+                },
+                {
+                    label: 'Completed Sessions',
+                    value: analytics.doctorCompletedSessions,
+                    hint: 'Consultations completed successfully',
+                    icon: Activity,
+                },
+                {
+                    label: 'Active Sessions',
+                    value: analytics.doctorActiveSessions,
+                    hint: `Cancelled: ${analytics.doctorCancelledSessions}`,
+                    icon: TrendingUp,
+                },
+                {
+                    label: 'Avg Tokens / Session',
+                    value: analytics.doctorAvgTokens,
+                    hint: 'Average queue tokens per appointment',
+                    icon: Users,
+                },
+                {
+                    label: 'Patient Records',
+                    value: analytics.records,
+                    hint: 'Total records accessible to you',
+                    icon: FileText,
+                },
+            ];
+        }
+
+        return [
             {
                 label: 'Symptom Analyses',
                 value: analytics.symptomChecks,
@@ -274,47 +344,25 @@ export default function DashboardPage() {
                 icon: TrendingUp,
             },
             {
-                label: isEndUserRole ? 'My Health Records' : 'Patient Records',
+                label: 'My Health Records',
                 value: analytics.records,
                 hint: 'Uploaded clinical documents',
                 icon: FileText,
             },
+            {
+                label: 'Active Queue Tokens',
+                value: analytics.queuePrimary,
+                hint: 'Awaiting consultation',
+                icon: Users,
+            },
+            {
+                label: 'Total Bookings',
+                value: analytics.queueSecondary,
+                hint: 'All queue bookings',
+                icon: Clock3,
+            },
         ];
-
-        if (isEndUserRole) {
-            baseCards.push(
-                {
-                    label: 'Active Queue Tokens',
-                    value: analytics.queuePrimary,
-                    hint: 'Awaiting consultation',
-                    icon: Users,
-                },
-                {
-                    label: 'Total Bookings',
-                    value: analytics.queueSecondary,
-                    hint: 'All queue bookings',
-                    icon: Clock3,
-                }
-            );
-        } else {
-            baseCards.push(
-                {
-                    label: 'Appointments Managed',
-                    value: analytics.queuePrimary,
-                    hint: 'Doctor queue sessions',
-                    icon: Users,
-                },
-                {
-                    label: 'Tokens Issued',
-                    value: analytics.queueSecondary,
-                    hint: 'Across all appointments',
-                    icon: Clock3,
-                }
-            );
-        }
-
-        return baseCards;
-    }, [analytics, isEndUserRole]);
+    }, [analytics, isProviderRole]);
 
     const roleLabel = isEndUserRole ? 'Patient/User' : (isProviderRole ? 'Doctor/Admin' : role);
     const adherenceBand = analytics.adherenceRate >= 80 ? 'Good' : analytics.adherenceRate >= 50 ? 'Average' : 'Needs Attention';
@@ -477,11 +525,99 @@ export default function DashboardPage() {
         };
     }, [reportData, historySummary]);
 
+    const doctorGraphData = useMemo(() => {
+        const active = analytics.doctorActiveSessions;
+        const completed = analytics.doctorCompletedSessions;
+        const cancelled = analytics.doctorCancelledSessions;
+        const total = Math.max(active + completed + cancelled, 1);
+        const activePct = clamp(Math.round((active / total) * 100));
+        const completedPct = clamp(Math.round((completed / total) * 100));
+
+        const labels = [];
+        const bookingDaily = [];
+        const nowDay = new Date();
+        nowDay.setHours(0, 0, 0, 0);
+        const start14 = new Date(nowDay);
+        start14.setDate(start14.getDate() - 13);
+
+        const map = new Map();
+        reportData.queueData.forEach((x) => {
+            const d = new Date(x?.appointmentDate || x?.createdAt || 0);
+            d.setHours(0, 0, 0, 0);
+            const key = d.getTime();
+            if (!Number.isFinite(key) || key < start14.getTime()) return;
+            map.set(key, (map.get(key) || 0) + 1);
+        });
+
+        for (let i = 0; i < 14; i += 1) {
+            const d = new Date(start14);
+            d.setDate(start14.getDate() + i);
+            const key = d.getTime();
+            labels.push(d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }));
+            bookingDaily.push(map.get(key) || 0);
+        }
+
+        return {
+            activePct,
+            completedPct,
+            labels,
+            bookingDaily,
+            bars: [
+                { label: 'Active', value: active },
+                { label: 'Completed', value: completed },
+                { label: 'Cancelled', value: cancelled },
+                { label: 'Tokens Issued', value: analytics.queueSecondary },
+            ],
+        };
+    }, [analytics, reportData.queueData]);
+
+    const fetchPatientFullReport = async (patient) => {
+        if (!patient?._id) return;
+        setPatientReportLoading(true);
+        setPatientSearchError('');
+        try {
+            const res = await api.get(`/records/patient-report/${patient._id}`);
+            setPatientReport(res.data?.data || null);
+            setSelectedPatient(patient);
+        } catch (e) {
+            setPatientSearchError(e.response?.data?.message || 'Failed to fetch patient report');
+        } finally {
+            setPatientReportLoading(false);
+        }
+    };
+
+    const handlePatientSearch = async (e) => {
+        e.preventDefault();
+        if (!patientEmail.trim()) return;
+
+        setPatientSearchLoading(true);
+        setPatientSearchError('');
+        try {
+            const res = await api.get(`/records/search-patient?email=${encodeURIComponent(patientEmail.trim())}`);
+            const patient = res.data?.data;
+            if (!patient?._id) {
+                setPatientSearchError('Patient not found');
+                return;
+            }
+            await fetchPatientFullReport(patient);
+        } catch (e2) {
+            setPatientSearchError(e2.response?.data?.message || 'Patient not found');
+        } finally {
+            setPatientSearchLoading(false);
+        }
+    };
+
     const fmt = (d) => {
         if (!d) return '—';
         const dt = new Date(d);
         if (Number.isNaN(dt.getTime())) return '—';
         return dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const resolveFileUrl = (fileUrl = '') => {
+        if (!fileUrl) return '';
+        if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
+        return `${BASE_URL}${fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`}`;
     };
 
     return (
@@ -521,6 +657,196 @@ export default function DashboardPage() {
                     );
                 })}
             </div>
+
+            {isProviderRole && (
+                <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1rem' }}>
+                    <h3 style={{ fontSize: '0.98rem', marginBottom: '0.7rem' }}>Doctor Performance Graphs</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: '0.75rem' }}>
+                        <CircularStat
+                            label="Active sessions ratio (30d)"
+                            value={loading ? 0 : doctorGraphData.activePct}
+                            subtitle={loading ? 'Loading...' : `${analytics.doctorActiveSessions} active`}
+                            color="#16a34a"
+                        />
+                        <CircularStat
+                            label="Completed sessions ratio (30d)"
+                            value={loading ? 0 : doctorGraphData.completedPct}
+                            subtitle={loading ? 'Loading...' : `${analytics.doctorCompletedSessions} completed`}
+                            color="#f59e0b"
+                        />
+                        <BarTrend
+                            title="Clinical workload summary"
+                            items={loading ? [{ label: 'Active', value: 0 }, { label: 'Completed', value: 0 }, { label: 'Cancelled', value: 0 }, { label: 'Tokens Issued', value: 0 }] : doctorGraphData.bars}
+                            color="#2563eb"
+                        />
+                    </div>
+
+                    <div style={{ marginTop: '0.75rem' }}>
+                        <AnalyticsLineChart
+                            title="Doctor booking trend (last 14 days)"
+                            subtitle="Appointments activity day by day"
+                            labels={loading ? Array.from({ length: 14 }, (_, i) => `D${i + 1}`) : doctorGraphData.labels}
+                            series={[
+                                {
+                                    key: 'bookings',
+                                    label: 'Bookings',
+                                    color: '#2563eb',
+                                    data: loading ? Array(14).fill(0) : doctorGraphData.bookingDaily,
+                                },
+                            ]}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {isProviderRole && (
+                <>
+                    <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1rem' }}>
+                        <h3 style={{ fontSize: '0.98rem', marginBottom: '0.6rem' }}>Patient Full Report (Doctor View)</h3>
+                        <form onSubmit={handlePatientSearch} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <input
+                                className="input"
+                                type="email"
+                                value={patientEmail}
+                                onChange={(ev) => setPatientEmail(ev.target.value)}
+                                placeholder="Enter patient email"
+                                style={{ flex: 1, minWidth: '240px' }}
+                            />
+                            <button className="btn btn-primary" type="submit" disabled={patientSearchLoading}>
+                                <Search size={16} /> {patientSearchLoading ? 'Searching...' : 'Load Report'}
+                            </button>
+                        </form>
+                        {patientSearchError && <p style={{ marginTop: '0.55rem', color: '#dc2626', fontSize: '0.84rem' }}>{patientSearchError}</p>}
+                    </div>
+
+                    {selectedPatient && (
+                        <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                                <User size={16} color="#3b82f6" />
+                                <strong>{selectedPatient.name}</strong>
+                                <span style={{ color: 'var(--text-light)', fontSize: '0.82rem' }}>{selectedPatient.email}</span>
+                            </div>
+
+                            {patientReportLoading ? (
+                                <p style={{ fontSize: '0.86rem', color: 'var(--text-light)' }}>Loading patient report...</p>
+                            ) : patientReport ? (
+                                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                    <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.75rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.3rem' }}>Recovery Summary</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '0.55rem' }}>
+                                            <div><strong>Latest severity:</strong> {patientReport.recoverySummary?.latestSeverity || '—'}</div>
+                                            <div><strong>Active medications:</strong> {patientReport.recoverySummary?.activeMedicationCount ?? 0}</div>
+                                            <div><strong>Total consultations:</strong> {patientReport.recoverySummary?.totalConsultations ?? 0}</div>
+                                            <div><strong>Last consulted doctor:</strong> {patientReport.recoverySummary?.lastConsultedDoctor || '—'}</div>
+                                            <div><strong>Last consultation date:</strong> {fmt(patientReport.recoverySummary?.lastConsultationDate)}</div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.75rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.3rem' }}>History Snapshot</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.55rem' }}>
+                                            <div><strong>Symptom reports:</strong> {patientReport.symptoms?.length || 0}</div>
+                                            <div><strong>Health records:</strong> {patientReport.records?.length || 0}</div>
+                                            <div><strong>Consultation history:</strong> {patientReport.consultations?.length || 0}</div>
+                                            <div><strong>Medication plans:</strong> {patientReport.medications?.length || 0}</div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.75rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.3rem' }}>Blood Tests</div>
+                                        {(patientReport.bloodTests || []).length === 0 ? (
+                                            <div style={{ fontSize: '0.84rem', color: 'var(--text-light)' }}>No blood test records found.</div>
+                                        ) : (
+                                            <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.84rem' }}>
+                                                {patientReport.bloodTests.slice(0, 5).map((r) => (
+                                                    <li key={r._id}>{r.title} ({fmt(r.createdAt)})</li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+
+                                    <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.75rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.3rem' }}>Prescriptions & Medications</div>
+                                        {(patientReport.prescribedMedicines || []).length === 0 ? (
+                                            <div style={{ fontSize: '0.84rem', color: 'var(--text-light)' }}>No extracted prescriptions found.</div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gap: '0.35rem' }}>
+                                                {patientReport.prescribedMedicines.slice(0, 8).map((m, idx) => (
+                                                    <div key={`${m.name}-${idx}`} style={{ fontSize: '0.84rem' }}>
+                                                        • <strong>{m.name || 'Medicine'}</strong>
+                                                        {m.dosage ? ` | ${m.dosage}` : ''}
+                                                        {m.frequency ? ` | ${m.frequency}` : ''}
+                                                        {m.duration ? ` | ${m.duration}` : ''}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.75rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.3rem' }}>Consultation History</div>
+                                        {(patientReport.consultations || []).length === 0 ? (
+                                            <div style={{ fontSize: '0.84rem', color: 'var(--text-light)' }}>No consultation history found.</div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gap: '0.4rem' }}>
+                                                {patientReport.consultations.slice(0, 8).map((c) => (
+                                                    <div key={c._id} style={{ fontSize: '0.84rem', paddingBottom: '0.35rem', borderBottom: '1px dashed var(--border)' }}>
+                                                        <strong>{c.doctorName || 'Unknown doctor'}</strong>
+                                                        <span style={{ color: 'var(--text-light)' }}> • {fmt(c.consultationDate || c.appointmentDate || c.updatedAt || c.createdAt)}</span>
+                                                        <div style={{ marginTop: '0.12rem', color: 'var(--text-light)' }}>
+                                                            Status: {String(c.status || 'unknown').toUpperCase()}
+                                                            {c.tokenNumber ? ` • Token #${c.tokenNumber}` : ''}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.75rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.3rem' }}>Uploaded PDFs</div>
+                                        {(patientReport.uploadedPdfs || []).length === 0 ? (
+                                            (patientReport.uploadedFiles || []).length === 0 ? (
+                                                <div style={{ fontSize: '0.84rem', color: 'var(--text-light)' }}>No uploaded files found for this patient.</div>
+                                            ) : (
+                                                <div style={{ display: 'grid', gap: '0.4rem' }}>
+                                                    {(patientReport.uploadedFiles || []).slice(0, 10).map((f) => (
+                                                        <a
+                                                            key={f._id}
+                                                            href={resolveFileUrl(f.fileUrl)}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            style={{ fontSize: '0.84rem', color: '#2563eb', textDecoration: 'none' }}
+                                                        >
+                                                            {f.title || 'Uploaded file'} ({fmt(f.createdAt)})
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div style={{ display: 'grid', gap: '0.4rem' }}>
+                                                {patientReport.uploadedPdfs.slice(0, 10).map((p) => (
+                                                    <a
+                                                        key={p._id}
+                                                        href={resolveFileUrl(p.fileUrl)}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{ fontSize: '0.84rem', color: '#2563eb', textDecoration: 'none' }}
+                                                    >
+                                                        {p.title || 'Prescription PDF'} ({fmt(p.createdAt)})
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <p style={{ fontSize: '0.86rem', color: 'var(--text-light)' }}>Search a patient to view full clinical report.</p>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
 
             {isEndUserRole && (
                 <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1rem' }}>

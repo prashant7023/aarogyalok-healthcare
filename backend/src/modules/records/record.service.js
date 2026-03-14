@@ -4,6 +4,10 @@ const pdfParse = require('pdf-parse');
 const { extractMedicalDataFromText, normalizeMedicineMap } = require('../../config/grok');
 const medicationService = require('../medication/services/medication.service');
 const Medication = require('../medication/models/medication.model');
+const SymptomReport = require('../symptom/symptom.model');
+const Booking = require('../queue/booking.model');
+const Appointment = require('../queue/appointment.model');
+const Patient = require('../auth/patient.model');
 
 const summarizeText = (text = '') => {
     const clean = String(text).replace(/\s+/g, ' ').trim();
@@ -196,4 +200,148 @@ const deleteRecord = async (id, userId, isPrivileged) => {
     return HealthRecord.findOneAndDelete({ _id: id, userId });
 };
 
-module.exports = { createRecord, getAllRecords, getRecords, getRecordById, deleteRecord };
+const getPatientFullReport = async (patientId) => {
+    const patient = await Patient.findById(patientId).lean();
+    const patientName = String(patient?.name || '').trim();
+
+    const bookingQuery = patientName
+        ? {
+            $or: [
+                { patientId },
+                { patientName: { $regex: `^${patientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } },
+            ],
+        }
+        : { patientId };
+
+    const [
+        records,
+        medications,
+        symptoms,
+        bookings,
+    ] = await Promise.all([
+        HealthRecord.find({ userId: patientId }).sort({ createdAt: -1 }).lean(),
+        Medication.find({ userId: patientId }).sort({ createdAt: -1 }).lean(),
+        SymptomReport.find({ userId: patientId }).sort({ createdAt: -1 }).lean(),
+        Booking.find(bookingQuery).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    const appointmentIds = [...new Set(bookings.map((b) => String(b.appointmentId)).filter(Boolean))];
+    const appointments = await Appointment.find({ _id: { $in: appointmentIds } })
+        .populate('doctorId', 'name')
+        .lean();
+    const appointmentMap = new Map(appointments.map((a) => [String(a._id), a]));
+
+    const bloodTestRecords = records.filter((r) => {
+        const text = `${r.title || ''} ${r.description || ''} ${r.ocrSummary || ''}`.toLowerCase();
+        return /(blood|cbc|hemoglobin|platelet|rbc|wbc|lab|test report)/i.test(text);
+    });
+
+    const prescriptionRecords = records.filter((r) =>
+        Array.isArray(r.medicineMap) && r.medicineMap.length > 0
+    );
+    const uploadedFiles = records
+        .filter((r) => !!r.fileUrl)
+        .map((r) => ({
+            _id: r._id,
+            title: r.title || 'Uploaded File',
+            fileUrl: r.fileUrl || '',
+            fileType: r.fileType || '',
+            description: r.description || '',
+            createdAt: r.createdAt || null,
+        }));
+
+    const uploadedPdfs = uploadedFiles.filter((f) => {
+        const typeHint = String(f.fileType || '').toLowerCase();
+        const urlHint = String(f.fileUrl || '').toLowerCase();
+        const titleHint = String(f.title || '').toLowerCase();
+        const descHint = String(f.description || '').toLowerCase();
+
+        return (
+            typeHint.includes('pdf') ||
+            /\.pdf($|\?|#)/i.test(urlHint) ||
+            /\.pdf($|\s)/i.test(titleHint) ||
+            /\bpdf\b/i.test(descHint)
+        );
+    });
+
+    const prescriptionPdfs = records
+        .filter((r) => {
+            const typeHint = String(r.fileType || '').toLowerCase();
+            const urlHint = String(r.fileUrl || '').toLowerCase();
+            const textHint = `${r.title || ''} ${r.description || ''} ${r.ocrSummary || ''}`.toLowerCase();
+            const hasRxHint = /(prescription|rx|medicine|medication)/i.test(textHint);
+            const hasMedicineMap = Array.isArray(r.medicineMap) && r.medicineMap.length > 0;
+            const isPdf = typeHint.includes('pdf') || urlHint.endsWith('.pdf');
+            return isPdf && (hasRxHint || hasMedicineMap);
+        })
+        .map((r) => ({
+            _id: r._id,
+            title: r.title || 'Prescription',
+            fileUrl: r.fileUrl || '',
+            createdAt: r.createdAt || null,
+        }));
+
+    const allPrescribedMedicines = prescriptionRecords.flatMap((r) => r.medicineMap || []);
+
+    const consultationHistory = bookings
+        .map((b) => {
+            const apt = appointmentMap.get(String(b.appointmentId));
+            const doctorName = apt?.doctorId?.name || apt?.doctorName || 'Unknown';
+            const appointmentDate = apt?.appointmentDate || null;
+            const consultationDate = appointmentDate || b.updatedAt || b.createdAt || null;
+            const status = String(b.status || '').toLowerCase();
+            const markedBy = String(b.markedBy || '').toLowerCase();
+            const isConsulted =
+                status === 'completed' ||
+                markedBy === 'completed' ||
+                String(apt?.status || '').toLowerCase() === 'completed';
+
+            return {
+                ...b,
+                doctorName,
+                appointmentDate,
+                consultationDate,
+                isConsulted,
+            };
+        })
+        .sort((a, b) => new Date(b.consultationDate || 0) - new Date(a.consultationDate || 0));
+
+    const consultedHistory = consultationHistory.filter((x) => x.isConsulted);
+    const lastConsultation = consultedHistory[0] || consultationHistory[0] || null;
+
+    const activeMeds = medications.filter((m) => m.isActive);
+    const endedMeds = medications.filter((m) => !m.isActive || (m.endDate && new Date(m.endDate) < new Date()));
+
+    const recoverySummary = {
+        totalSymptomsLogged: symptoms.length,
+        latestSeverity: symptoms[0]?.aiResult?.severity || 'unknown',
+        activeMedicationCount: activeMeds.length,
+        completedMedicationCount: endedMeds.length,
+        totalConsultations: consultationHistory.length,
+        lastConsultedDoctor: lastConsultation?.doctorName || 'Not available',
+        lastConsultationDate: lastConsultation?.consultationDate || null,
+    };
+
+    return {
+        records,
+        uploadedFiles,
+        uploadedPdfs,
+        bloodTests: bloodTestRecords,
+        prescriptions: prescriptionRecords,
+        prescriptionPdfs,
+        prescribedMedicines: allPrescribedMedicines,
+        symptoms,
+        medications,
+        consultations: consultationHistory,
+        recoverySummary,
+    };
+};
+
+module.exports = {
+    createRecord,
+    getAllRecords,
+    getRecords,
+    getRecordById,
+    deleteRecord,
+    getPatientFullReport,
+};

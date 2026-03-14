@@ -56,6 +56,12 @@ const getAdherenceStats = asyncHandler(async (req, res) => {
     sendSuccess(res, stats, 'Adherence stats');
 });
 
+const getDoctorMedicationSummary = asyncHandler(async (req, res) => {
+    const days = parseInt(req.query.days, 10) || 30;
+    const summary = await medicationService.getDoctorMedicationSummary(req.user._id, days);
+    sendSuccess(res, summary, 'Doctor medication summary');
+});
+
 module.exports = {
     createMedication,
     getMedications,
@@ -65,4 +71,5 @@ module.exports = {
     getTodayReminders,
     respondToReminder,
     getAdherenceStats,
+    getDoctorMedicationSummary,
 };

@@ -8,6 +8,7 @@ const {
     getTodayReminders,
     respondToReminder,
     getAdherenceStats,
+    getDoctorMedicationSummary,
 } = require('../controllers/medication.controller');
 const { protect } = require('../../../shared/middleware/auth.middleware');
 
@@ -20,6 +21,7 @@ router.use(protect);
 router.get('/reminders/today', getTodayReminders);
 router.patch('/reminders/:id/respond', respondToReminder);
 router.get('/adherence', getAdherenceStats);
+router.get('/doctor-summary', getDoctorMedicationSummary);
 
 // ---- CRUD routes ----
 router.route('/').post(createMedication).get(getMedications);

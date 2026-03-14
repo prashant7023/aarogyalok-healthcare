@@ -51,4 +51,13 @@ const deleteRecord = asyncHandler(async (req, res) => {
     sendSuccess(res, null, 'Record deleted');
 });
 
-module.exports = { createRecord, getRecords, getRecord, deleteRecord };
+const getPatientFullReport = asyncHandler(async (req, res) => {
+    if (!isPrivileged(req.user.role)) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const report = await recordService.getPatientFullReport(req.params.patientId);
+    sendSuccess(res, report, 'Patient report fetched');
+});
+
+module.exports = { createRecord, getRecords, getRecord, deleteRecord, getPatientFullReport };

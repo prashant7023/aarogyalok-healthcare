@@ -1,6 +1,8 @@
 const Medication = require('../models/medication.model');
 const ReminderLog = require('../models/reminderLog.model');
 const scheduler = require('../reminders/reminder.scheduler');
+const Appointment = require('../../queue/appointment.model');
+const Booking = require('../../queue/booking.model');
 
 /* ------------------------------------------------------------------ */
 /*  CRUD                                                              */
@@ -84,6 +86,74 @@ const getAdherenceStats = async (userId, days = 7) => {
     return { total, taken, missed, skipped, pending, adherenceRate, days };
 };
 
+const getDoctorMedicationSummary = async (doctorId, days = 30) => {
+    const totalAppointments = await Appointment.countDocuments({ doctorId });
+
+    const appointmentIds = await Appointment.find({ doctorId }).distinct('_id');
+    if (!appointmentIds.length) {
+        return {
+            totalAppointments,
+            totalPatients: 0,
+            adherence: {
+                total: 0,
+                taken: 0,
+                skipped: 0,
+                missed: 0,
+                pending: 0,
+                days,
+            },
+        };
+    }
+
+    const patientIds = await Booking.find({
+        appointmentId: { $in: appointmentIds },
+        patientId: { $ne: null },
+    }).distinct('patientId');
+
+    if (!patientIds.length) {
+        return {
+            totalAppointments,
+            totalPatients: 0,
+            adherence: {
+                total: 0,
+                taken: 0,
+                skipped: 0,
+                missed: 0,
+                pending: 0,
+                days,
+            },
+        };
+    }
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    since.setHours(0, 0, 0, 0);
+
+    const logs = await ReminderLog.find({
+        userId: { $in: patientIds },
+        scheduledAt: { $gte: since },
+    });
+
+    const total = logs.length;
+    const taken = logs.filter((l) => l.status === 'taken').length;
+    const skipped = logs.filter((l) => l.status === 'skipped').length;
+    const missed = logs.filter((l) => l.status === 'missed').length;
+    const pending = logs.filter((l) => l.status === 'pending').length;
+
+    return {
+        totalAppointments,
+        totalPatients: patientIds.length,
+        adherence: {
+            total,
+            taken,
+            skipped,
+            missed,
+            pending,
+            days,
+        },
+    };
+};
+
 module.exports = {
     createMedication,
     getMedications,
@@ -93,4 +163,5 @@ module.exports = {
     getTodayReminders,
     respondToReminder,
     getAdherenceStats,
+    getDoctorMedicationSummary,
 };
