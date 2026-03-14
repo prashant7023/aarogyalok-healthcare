@@ -157,6 +157,39 @@ export default function SymptomPage() {
         }));
     };
 
+    const getRankedConditions = () => {
+        const diseases = Array.isArray(result?.aiResult?.possible_diseases)
+            ? result.aiResult.possible_diseases
+            : [];
+        const details = getConditionDetails();
+
+        const normalizeKey = (value) => String(value || '')
+            .toLowerCase()
+            .replace(/\([^)]*\)/g, '')
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const detailMap = new Map(details.map((item) => [normalizeKey(item.name), item]));
+
+        return diseases.map((name, idx) => {
+            const key = normalizeKey(name);
+            const direct = detailMap.get(key);
+            const loose = details.find((item) => {
+                const itemKey = normalizeKey(item.name);
+                return itemKey && key && (itemKey.includes(key) || key.includes(itemKey));
+            });
+            const resolved = direct || loose;
+
+            return {
+                rank: idx + 1,
+                name,
+                explanation: resolved?.explanation || `${name} is a possible condition linked to your symptoms. A doctor can confirm this after examination.`,
+                common_causes: Array.isArray(resolved?.common_causes) ? resolved.common_causes : ['Infection', 'Inflammation', 'Lifestyle trigger'],
+            };
+        });
+    };
+
     return (
         <div className="fade-in symptom-page">
             <div className="page-header">
@@ -218,16 +251,24 @@ export default function SymptomPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
                         <div>
                             <div style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '.05em', marginBottom: '0.4rem' }}>AI Diagnosis Results</div>
-                            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-dark)', lineHeight: 1.2, marginBottom: '0.35rem' }}>
-                                {result.aiResult?.possible_diseases?.[0] || 'Analysis Complete'}
-                            </div>
                             <div style={{ fontSize: '0.9rem', color: 'var(--text-mid)' }}>
-                                {result.aiResult?.possible_diseases?.slice(1).join(' • ')}
+                                Ranked by symptom match confidence
                             </div>
                         </div>
                         <span className={SEV_CLASS[result.aiResult?.severity] || 'badge badge-gray'} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
                             Severity: {SEV_LABEL[result.aiResult?.severity] || 'Moderate'}
                         </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.9rem' }}>
+                        {getRankedConditions().map((condition) => (
+                            <div key={`${condition.name}-${condition.rank}`} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.6rem 0.75rem', background: 'var(--surface-subtle)', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                                <span style={{ minWidth: '24px', height: '24px', borderRadius: '999px', background: 'var(--primary-soft)', color: 'var(--primary-dark)', fontSize: '0.78rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {condition.rank}
+                                </span>
+                                <span style={{ fontWeight: 700, color: 'var(--text-dark)', fontSize: '0.92rem' }}>{condition.name}</span>
+                            </div>
+                        ))}
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '0.9rem', marginBottom: '0.9rem' }}>
@@ -236,7 +277,11 @@ export default function SymptomPage() {
                                 <FileText size={16} /> Possible Conditions
                             </div>
                             <ul style={{ paddingLeft: '1.25rem', fontSize: '0.9rem', lineHeight: 1.55, color: 'var(--text-mid)', margin: 0 }}>
-                                {result.aiResult?.possible_diseases?.map(d => <li key={d} style={{ marginBottom: '0.4rem' }}>{d}</li>)}
+                                {getRankedConditions().map((item) => (
+                                    <li key={`${item.name}-${item.rank}`} style={{ marginBottom: '0.4rem' }}>
+                                        #{item.rank} {item.name}
+                                    </li>
+                                ))}
                             </ul>
                         </div>
                         <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -252,9 +297,14 @@ export default function SymptomPage() {
                             Condition Explanation (Patient Friendly)
                         </div>
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
-                            {getConditionDetails().map((item, idx) => (
-                                <div key={`${item.name}-${idx}`} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.8rem 0.9rem', background: 'var(--surface-soft)' }}>
-                                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.35rem' }}>{item.name}</div>
+                            {getRankedConditions().map((item) => (
+                                <div key={`${item.name}-${item.rank}`} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.8rem 0.9rem', background: 'var(--surface-soft)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                        <span style={{ minWidth: '22px', height: '22px', borderRadius: '999px', background: 'var(--primary-soft)', color: 'var(--primary-dark)', fontSize: '0.74rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {item.rank}
+                                        </span>
+                                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-dark)' }}>{item.name}</div>
+                                    </div>
                                     <div style={{ fontSize: '0.86rem', color: 'var(--text-mid)', lineHeight: 1.55, marginBottom: '0.45rem' }}>
                                         {item.explanation}
                                     </div>
