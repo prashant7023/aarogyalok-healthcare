@@ -60,7 +60,7 @@ export default function MyAppointments() {
             );
         });
 
-        socket.on('booking-status-updated', ({ appointmentId, bookingId, tokenNumber, status, markedBy }) => {
+        socket.on('booking-status-updated', ({ appointmentId, bookingId, tokenNumber, status, markedBy, doctorPrescription, prescribedMedicines }) => {
             setBookings((prev) =>
                 prev.map((booking) => {
                     if (booking.appointmentId?._id !== appointmentId) return booking;
@@ -72,6 +72,8 @@ export default function MyAppointments() {
                         ...booking,
                         status: status || booking.status,
                         markedBy: markedBy || booking.markedBy,
+                        doctorPrescription: typeof doctorPrescription === 'string' ? doctorPrescription : booking.doctorPrescription,
+                        prescribedMedicines: Array.isArray(prescribedMedicines) ? prescribedMedicines : booking.prescribedMedicines,
                         estimatedTurnTime: status === 'completed' || status === 'cancelled' ? null : booking.estimatedTurnTime,
                         estimatedWaitMinutes: status === 'completed' || status === 'cancelled' ? null : booking.estimatedWaitMinutes,
                     };
@@ -256,6 +258,33 @@ export default function MyAppointments() {
                                         <div style={{ fontSize: '0.78rem', color: '#8a8a8a', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: '5px' }}>
                                             <FileText size={11} style={{ marginTop: '2px', flexShrink: 0 }} />
                                             {booking.description}
+                                        </div>
+                                    )}
+
+                                    {isCompleted && (booking.doctorPrescription || (booking.prescribedMedicines?.length || 0) > 0) && (
+                                        <div style={{ marginTop: '0.7rem', border: '1px solid #d1fae5', background: '#f0fdf4', borderRadius: '8px', padding: '0.55rem 0.65rem' }}>
+                                            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#047857', marginBottom: '0.3rem' }}>
+                                                Doctor Prescription
+                                            </div>
+
+                                            {booking.doctorPrescription && (
+                                                <div style={{ fontSize: '0.78rem', color: '#14532d', lineHeight: 1.5, marginBottom: booking.prescribedMedicines?.length ? '0.45rem' : 0 }}>
+                                                    {booking.doctorPrescription}
+                                                </div>
+                                            )}
+
+                                            {(booking.prescribedMedicines?.length || 0) > 0 && (
+                                                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                                    {booking.prescribedMedicines.map((medicine, index) => (
+                                                        <span
+                                                            key={`${medicine}-${index}`}
+                                                            style={{ fontSize: '0.72rem', fontWeight: 700, color: '#047857', background: '#dcfce7', borderRadius: '999px', padding: '0.18rem 0.48rem' }}
+                                                        >
+                                                            {medicine}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

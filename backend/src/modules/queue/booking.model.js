@@ -68,6 +68,15 @@ const bookingSchema = new mongoose.Schema(
             type: String,
             enum: ['pending', 'present', 'absent', 'completed'],
             default: 'pending'
+        },
+        doctorPrescription: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        prescribedMedicines: {
+            type: [String],
+            default: []
         }
     },
     { timestamps: true }

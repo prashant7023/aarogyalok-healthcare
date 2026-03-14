@@ -35,12 +35,16 @@ const getAppointmentDetails = asyncHandler(async (req, res) => {
 
 // Mark patient (present/absent/completed)
 const markPatient = asyncHandler(async (req, res) => {
-    const { markStatus } = req.body;
+    const { markStatus, prescription, medicines } = req.body;
     const io = req.app.get('io');
     const booking = await appointmentService.markPatient(
         req.params.bookingId,
         req.user._id,
         markStatus,
+        {
+            prescription,
+            medicines,
+        },
         io
     );
     sendSuccess(res, booking, 'Patient marked successfully');
