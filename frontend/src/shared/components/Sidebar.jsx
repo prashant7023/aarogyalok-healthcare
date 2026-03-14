@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import useAuthStore from '../../features/auth/authStore';
-import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X, TableProperties } from 'lucide-react';
+import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X, Settings, CreditCard } from 'lucide-react';
 
 const NAV = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
@@ -9,6 +9,8 @@ const NAV = [
     { to: '/queue', icon: Users, label: 'Queue', section: 'CLINICAL', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
     { to: '/queue/patient-crm', icon: TableProperties, label: 'Patient CRM', section: 'CLINICAL', roles: ['doctor'] },
     { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/settings', icon: Settings, label: 'Settings', section: 'ACCOUNT', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/subscription', icon: CreditCard, label: 'Subscription', section: 'ACCOUNT', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, setSidebarWidth }) {
