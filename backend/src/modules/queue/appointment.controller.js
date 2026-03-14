@@ -53,7 +53,7 @@ const getAppointmentDetails = asyncHandler(async (req, res) => {
 
 // Mark patient (present/absent/completed)
 const markPatient = asyncHandler(async (req, res) => {
-    const { markStatus, prescription } = req.body;
+    const { markStatus, prescription, prescriptionOcrText } = req.body;
     let medicines = req.body.medicines;
 
     if (typeof medicines === 'string') {
@@ -84,6 +84,7 @@ const markPatient = asyncHandler(async (req, res) => {
             prescription,
             medicines,
             prescriptionFileUrl,
+            prescriptionOcrText,
         },
         io
     );

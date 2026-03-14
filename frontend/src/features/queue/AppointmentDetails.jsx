@@ -30,6 +30,27 @@ export default function AppointmentDetails() {
     const [medicines, setMedicines] = useState([]);
     const [submittingDone, setSubmittingDone] = useState(false);
 
+    const extractOcrTextFromFile = async (file) => {
+        if (!file) return '';
+        const isImage = String(file.type || '').startsWith('image/');
+        if (!isImage) return '';
+        if (!window?.puter?.ai?.img2txt) return '';
+
+        const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+        try {
+            const text = await window.puter.ai.img2txt(dataUrl);
+            return String(text || '').trim();
+        } catch (_error) {
+            return '';
+        }
+    };
+
     useEffect(() => {
         fetchDetails();
     }, [appointmentId]);
@@ -130,10 +151,14 @@ export default function AppointmentDetails() {
 
         setSubmittingDone(true);
         try {
+            const extractedOcrText = await extractOcrTextFromFile(prescriptionFile);
             const formData = new FormData();
             formData.append('markStatus', 'completed');
             formData.append('prescription', prescription);
             formData.append('medicines', JSON.stringify(medicines));
+            if (extractedOcrText) {
+                formData.append('prescriptionOcrText', extractedOcrText);
+            }
             if (prescriptionFile) {
                 formData.append('prescriptionFile', prescriptionFile);
             }

@@ -40,6 +40,56 @@ const summarizeText = (text = '') => {
     return sentences.join(' ');
 };
 
+const MEDICINE_STOP_WORDS = new Set([
+    'tab', 'tablet', 'tabs', 'cap', 'capsule', 'caps', 'syp', 'syrup', 'inj', 'injection',
+    'drop', 'drops', 'ointment', 'cream', 'gel', 'od', 'bd', 'tds', 'hs', 'sos', 'prn',
+    'daily', 'morning', 'night', 'noon', 'before', 'after', 'food', 'empty', 'stomach',
+    'mg', 'mcg', 'ml', 'gm', 'g', 'rx', 'dr', 'doctor', 'patient',
+]);
+
+const sanitizeMedicineName = (value = '') => {
+    let name = String(value || '').trim();
+    if (!name) return '';
+
+    name = name
+        .replace(/^[\d\s).:-]+/, '')
+        .replace(/[|,;]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    name = name
+        .replace(/^(?:tab(?:let)?s?|cap(?:sule)?s?|syp|syrup|inj(?:ection)?|drops?|ointment|cream|gel)\.?\s+/i, '')
+        .replace(/\b\d+(?:\.\d+)?\s?(?:mg|mcg|g|gm|ml)\b.*$/i, '')
+        .replace(/\s+(?:od|bd|tds|hs|sos|prn|daily|once\s+daily|twice\s+daily|thrice\s+daily).*$/i, '')
+        .trim();
+
+    if (!name) return '';
+
+    const lower = name.toLowerCase();
+    if (MEDICINE_STOP_WORDS.has(lower)) return '';
+    if (name.length < 3) return '';
+    if (!/[a-z]/i.test(name)) return '';
+    if (/^\d+$/.test(name)) return '';
+
+    return name;
+};
+
+const uniqueSanitizedMedicines = (items = []) => {
+    const seen = new Set();
+    const cleaned = [];
+
+    for (const raw of items) {
+        const name = sanitizeMedicineName(raw);
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        cleaned.push(name);
+    }
+
+    return cleaned;
+};
+
 const extractMedicineNamesFromText = (text = '') => {
     const lines = String(text || '')
         .split(/\r?\n/)
@@ -56,7 +106,7 @@ const extractMedicineNamesFromText = (text = '') => {
         candidates.push(...matches);
     }
 
-    return [...new Set(candidates)];
+    return uniqueSanitizedMedicines(candidates);
 };
 
 const resolveDoctorDisplayName = async (doctorId, fallbackName = '') => {
@@ -88,14 +138,16 @@ const getPdfTextFromFileUrl = async (fileUrl = '') => {
     }
 };
 
-const buildDoctorPrescriptionInsights = async ({ prescription = '', prescriptionFileUrl = '', medicines = [] }) => {
-    const normalizedMedicines = [...new Set(
-        (Array.isArray(medicines) ? medicines : [])
-            .map((item) => String(item || '').trim())
-            .filter(Boolean)
-    )];
+const buildDoctorPrescriptionInsights = async ({
+    prescription = '',
+    prescriptionFileUrl = '',
+    prescriptionOcrText = '',
+    medicines = [],
+}) => {
+    const normalizedMedicines = uniqueSanitizedMedicines(Array.isArray(medicines) ? medicines : []);
 
-    const ocrText = await getPdfTextFromFileUrl(prescriptionFileUrl);
+    const providedOcrText = String(prescriptionOcrText || '').trim();
+    const ocrText = providedOcrText || await getPdfTextFromFileUrl(prescriptionFileUrl);
     const sourceText = [String(prescription || '').trim(), ocrText].filter(Boolean).join('\n').trim();
 
     if (!sourceText) {
@@ -122,7 +174,11 @@ const buildDoctorPrescriptionInsights = async ({ prescription = '', prescription
 
     const localMedicineNames = extractMedicineNamesFromText(sourceText);
 
-    const mergedMedicines = [...new Set([...normalizedMedicines, ...aiMedicineNames, ...localMedicineNames])];
+    const mergedMedicines = uniqueSanitizedMedicines([
+        ...normalizedMedicines,
+        ...aiMedicineNames,
+        ...localMedicineNames,
+    ]);
 
     return {
         ocrText,
@@ -726,11 +782,8 @@ const getAppointmentDetails = async (appointmentId, doctorId) => {
 const createPatientMedicationsFromDoctorPrescription = async ({ booking, medicines = [], doctorId, doctorName }) => {
     if (!booking?.patientId || !Array.isArray(medicines) || medicines.length === 0) return;
 
-    const normalizedMedicines = [...new Set(
-        medicines
-            .map((item) => String(item || '').trim())
-            .filter(Boolean)
-    )];
+    const normalizedMedicines = uniqueSanitizedMedicines(medicines);
+    if (!normalizedMedicines.length) return;
 
     const startDate = new Date();
 
@@ -774,6 +827,9 @@ const markPatient = async (bookingId, doctorId, markStatus, treatmentData = {}, 
         const prescriptionFileUrl = typeof treatmentData.prescriptionFileUrl === 'string'
             ? treatmentData.prescriptionFileUrl.trim()
             : '';
+        const prescriptionOcrText = typeof treatmentData.prescriptionOcrText === 'string'
+            ? treatmentData.prescriptionOcrText.trim()
+            : '';
         const manualMedicines = Array.isArray(treatmentData.medicines)
             ? treatmentData.medicines
                 .map((item) => String(item || '').trim())
@@ -787,6 +843,7 @@ const markPatient = async (bookingId, doctorId, markStatus, treatmentData = {}, 
         const prescriptionInsights = await buildDoctorPrescriptionInsights({
             prescription,
             prescriptionFileUrl,
+            prescriptionOcrText,
             medicines: manualMedicines,
         });
 
