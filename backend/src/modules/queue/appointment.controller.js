@@ -62,6 +62,7 @@ const addOfflinePatientToQueue = asyncHandler(async (req, res) => {
 // Get all appointments (for browsing)
 const getAllAppointments = asyncHandler(async (req, res) => {
     const filters = {
+        doctorId: req.query.doctorId,
         specialization: req.query.specialization,
         fromDate: req.query.fromDate,
         date: req.query.date,
