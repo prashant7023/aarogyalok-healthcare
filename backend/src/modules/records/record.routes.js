@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { createRecord, getRecords, getRecord, deleteRecord, getPatientFullReport } = require('./record.controller');
 const { protect } = require('../../shared/middleware/auth.middleware');
 const Patient = require('../auth/patient.model');
+const recordService = require('./record.service');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -42,6 +43,14 @@ router.get('/search-patient', async (req, res) => {
         if (!email) return res.status(400).json({ success: false, message: 'email query required' });
         const patient = await Patient.findOne({ email: email.toLowerCase().trim() }).select('name email');
         if (!patient) return res.status(404).json({ success: false, message: 'No patient found with that email' });
+
+        if (req.user.role === 'doctor') {
+            const canAccess = await recordService.hasDoctorConsultedPatient(req.user._id, patient._id);
+            if (!canAccess) {
+                return res.status(403).json({ success: false, message: 'You can access only patients consulted by you' });
+            }
+        }
+
         res.json({ success: true, data: patient });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });

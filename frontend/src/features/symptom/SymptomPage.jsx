@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import api from '../../shared/utils/api';
-import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing, Star } from 'lucide-react';
+import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing, Star, PhoneCall } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
 import './symptom.css';
@@ -353,6 +353,16 @@ export default function SymptomPage() {
                             <div style={{ fontSize: '0.86rem', color: 'var(--text-mid)', marginBottom: '0.8rem', lineHeight: 1.5 }}>
                                 {result.automationPlan?.queueRecommendation?.reason}
                             </div>
+
+                            {result.automationPlan?.queueRecommendation?.contactNumber && (
+                                <a
+                                    href={`tel:${result.automationPlan.queueRecommendation.contactNumber}`}
+                                    className="btn btn-primary"
+                                    style={{ marginBottom: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                >
+                                    <PhoneCall size={15} /> Call {result.automationPlan.queueRecommendation.contactNumber}
+                                </a>
+                            )}
 
                             {Array.isArray(result.automationPlan?.recommendedProviders) && result.automationPlan.recommendedProviders.length > 0 && (
                                 <div style={{ marginBottom: '0.8rem' }}>

@@ -26,9 +26,14 @@ const createRecord = asyncHandler(async (req, res) => {
 });
 
 const getRecords = asyncHandler(async (req, res) => {
-    const records = isPrivileged(req.user.role)
-        ? await recordService.getAllRecords()
-        : await recordService.getRecords(req.user._id);
+    let records;
+    if (req.user.role === 'doctor') {
+        records = await recordService.getDoctorScopedRecords(req.user._id);
+    } else if (isPrivileged(req.user.role)) {
+        records = await recordService.getAllRecords();
+    } else {
+        records = await recordService.getRecords(req.user._id);
+    }
     sendSuccess(res, records, 'Records fetched');
 });
 
@@ -55,6 +60,13 @@ const deleteRecord = asyncHandler(async (req, res) => {
 const getPatientFullReport = asyncHandler(async (req, res) => {
     if (!isPrivileged(req.user.role)) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (req.user.role === 'doctor') {
+        const canAccess = await recordService.hasDoctorConsultedPatient(req.user._id, req.params.patientId);
+        if (!canAccess) {
+            return res.status(403).json({ success: false, message: 'You can access only patients consulted by you' });
+        }
     }
 
     const report = await recordService.getPatientFullReport(req.params.patientId);

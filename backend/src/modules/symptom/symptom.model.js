@@ -27,6 +27,8 @@ const symptomSchema = new mongoose.Schema(
             shouldShowHomeCare: { type: Boolean, default: false },
             diseaseCategory: String,
             recommendedSpecialist: String,
+            specialistFromAI: String,
+            matchedSpecialist: String,
             recommendedProviders: [
                 {
                     doctorId: mongoose.Schema.Types.ObjectId,
@@ -53,6 +55,7 @@ const symptomSchema = new mongoose.Schema(
             queueRecommendation: {
                 shouldJoinQueue: { type: Boolean, default: false },
                 reason: String,
+                contactNumber: String,
             },
             specialistMatchFound: { type: Boolean, default: true },
             providerSource: String,
