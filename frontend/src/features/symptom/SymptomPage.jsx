@@ -14,8 +14,8 @@ const QUICK_TAGS = [
     { label: 'Dizziness', value: 'dizziness' },
 ];
 
-const SEV_CLASS = { mild: 'badge badge-green', moderate: 'badge badge-yellow', critical: 'badge badge-red' };
-const SEV_LABEL = { mild: 'Mild', moderate: 'Moderate', critical: 'Critical' };
+const SEV_CLASS = { mild: 'badge badge-green', moderate: 'badge badge-yellow', severe: 'badge badge-red', critical: 'badge badge-red' };
+const SEV_LABEL = { mild: 'Mild', moderate: 'Moderate', severe: 'Severe', critical: 'Critical' };
 
 export default function SymptomPage() {
     const [input, setInput] = useState('');
@@ -28,8 +28,21 @@ export default function SymptomPage() {
         setSelected(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
     };
 
+    const parseFreeTextSymptoms = (text) => {
+        const cleaned = String(text || '').trim();
+        if (!cleaned) return [];
+
+        const parts = cleaned
+            .split(/[\n,;]+/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        // If it is a single paragraph, keep it as one descriptive item.
+        return parts.length > 0 ? parts : [cleaned];
+    };
+
     const analyze = async () => {
-        const all = [...new Set([...selected, ...input.split(',').map(s => s.trim()).filter(Boolean)])];
+        const all = [...new Set([...selected, ...parseFreeTextSymptoms(input)])];
         if (!all.length) { setError('Please enter or select at least one symptom'); return; }
         setError(''); setLoading(true); setResult(null);
         try {
@@ -41,6 +54,20 @@ export default function SymptomPage() {
     };
 
     const reset = () => { setInput(''); setSelected([]); setResult(null); setError(''); };
+
+    const getConditionDetails = () => {
+        const details = result?.aiResult?.condition_details;
+        if (Array.isArray(details) && details.length > 0) {
+            return details;
+        }
+
+        const fallbackDiseases = result?.aiResult?.possible_diseases || [];
+        return fallbackDiseases.map((name) => ({
+            name,
+            explanation: `${name} is a possible condition linked to your symptoms. A doctor can confirm this after examination.`,
+            common_causes: ['Infection', 'Inflammation', 'Allergy or environmental trigger']
+        }));
+    };
 
     return (
         <div className="fade-in symptom-page">
@@ -77,8 +104,15 @@ export default function SymptomPage() {
                     ))}
                 </div>
 
-                <label style={{ color: 'var(--text-dark)', marginBottom: '0.55rem' }}>Or type additional symptoms (comma-separated)</label>
-                <input className="input" placeholder="e.g. nausea, joint pain, sore throat..." value={input} onChange={e => setInput(e.target.value)} style={{ padding: '0.8rem 1rem' }} />
+                <label style={{ color: 'var(--text-dark)', marginBottom: '0.55rem' }}>Or describe symptoms in your own words (paragraph or list)</label>
+                <textarea
+                    className="input"
+                    placeholder="e.g. I have had fever since yesterday, body pain, sore throat, and mild dizziness in the morning."
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    rows={3}
+                    style={{ padding: '0.8rem 1rem', resize: 'vertical' }}
+                />
 
                 {error && <p className="form-error" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> {error}</p>}
 
@@ -122,6 +156,27 @@ export default function SymptomPage() {
                                 <CheckCircle2 size={16} /> Home Advice
                             </div>
                             <p style={{ fontSize: '0.9rem', lineHeight: 1.55, color: 'var(--text-mid)', margin: 0 }}>{result.aiResult?.home_advice}</p>
+                        </div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '0.9rem' }}>
+                        <div style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '0.7rem' }}>
+                            Condition Explanation (Patient Friendly)
+                        </div>
+                        <div style={{ display: 'grid', gap: '0.75rem' }}>
+                            {getConditionDetails().map((item, idx) => (
+                                <div key={`${item.name}-${idx}`} style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.8rem 0.9rem', background: 'var(--surface-soft)' }}>
+                                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.35rem' }}>{item.name}</div>
+                                    <div style={{ fontSize: '0.86rem', color: 'var(--text-mid)', lineHeight: 1.55, marginBottom: '0.45rem' }}>
+                                        {item.explanation}
+                                    </div>
+                                    {Array.isArray(item.common_causes) && item.common_causes.length > 0 && (
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-mid)' }}>
+                                            <strong>Common causes:</strong> {item.common_causes.join(', ')}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
 

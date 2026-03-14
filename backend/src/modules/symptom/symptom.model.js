@@ -6,7 +6,15 @@ const symptomSchema = new mongoose.Schema(
         symptoms: [{ type: String, required: true }],
         aiResult: {
             possible_diseases: [String],
-            severity: { type: String, enum: ['mild', 'moderate', 'critical'] },
+            condition_details: [
+                {
+                    name: String,
+                    explanation: String,
+                    common_causes: [String],
+                },
+            ],
+            // Keep both severe and critical for backward compatibility with older records.
+            severity: { type: String, enum: ['mild', 'moderate', 'severe', 'critical'] },
             recommended_specialist: String,
             urgency_level: String,
             home_advice: String,
