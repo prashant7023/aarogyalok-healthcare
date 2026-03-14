@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, DollarSign, MapPin, Users, Filter, BookOpen, RefreshCw, Stethoscope, Navigation } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, Users, Filter, BookOpen, RefreshCw, Stethoscope, Navigation, Star, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../shared/utils/api';
 
@@ -7,7 +7,7 @@ export default function PatientDashboard() {
     const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [filter, setFilter] = useState({ specialization: '', fromDate: '' });
+    const [filter, setFilter] = useState({ specialization: '', fromDate: '', doctorSearch: '' });
 
     useEffect(() => {
         fetchAppointments();
@@ -19,6 +19,7 @@ export default function PatientDashboard() {
             const params = new URLSearchParams();
             if (filter.specialization) params.append('specialization', filter.specialization);
             if (filter.fromDate) params.append('fromDate', filter.fromDate);
+            if (filter.doctorSearch?.trim()) params.append('doctorSearch', filter.doctorSearch.trim());
             
             const res = await api.get(`/queue/appointments?${params.toString()}`);
             setAppointments(res.data.data || []);
@@ -106,6 +107,21 @@ export default function PatientDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                            Doctor Name or Email
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                            <input
+                                className="input"
+                                placeholder="e.g. Kavya or kavya@email.com"
+                                value={filter.doctorSearch}
+                                onChange={(e) => setFilter({ ...filter, doctorSearch: e.target.value })}
+                                style={{ paddingLeft: '2rem' }}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
                             Specialization
                         </label>
                         <select
@@ -176,6 +192,8 @@ export default function PatientDashboard() {
                                 {apts.map((apt, idx) => {
                                     const isBookable = apt.status === 'active';
                                     const aptDate = new Date(apt.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                                    const doctorRating = Number(apt?.doctorId?.rating || 0);
+                                    const doctorRatingCount = Number(apt?.doctorId?.ratingCount || 0);
 
                                     return (
                                         <div
@@ -213,6 +231,10 @@ export default function PatientDashboard() {
                                                     <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{apt.title}</span>
                                                     <span style={{ background: '#ebf4ff', color: '#005bd3', padding: '0.1rem 0.45rem', borderRadius: '999px', fontWeight: 700, fontSize: '0.72rem' }}>
                                                         Dr. {apt.doctorId?.name || apt.doctorName || 'Unknown'}
+                                                    </span>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#fff7ed', color: '#b45309', padding: '0.1rem 0.45rem', borderRadius: '999px', fontWeight: 700, fontSize: '0.72rem' }}>
+                                                        <Star size={11} fill="#f59e0b" color="#f59e0b" />
+                                                        {doctorRating > 0 ? `${doctorRating.toFixed(1)} (${doctorRatingCount})` : 'No ratings'}
                                                     </span>
                                                     <span style={{ fontSize: '0.72rem', color: '#8a8a8a' }}>{apt.specialization}</span>
                                                 </div>

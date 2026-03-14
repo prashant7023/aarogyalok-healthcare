@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar, Clock, MapPin, FileText, XCircle, RefreshCw, Hash, Timer, Activity } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Calendar, Clock, MapPin, FileText, XCircle, RefreshCw, Hash, Timer, Activity, Star, MessageSquare } from 'lucide-react';
 import { io } from 'socket.io-client';
 import api from '../../shared/utils/api';
 
@@ -11,6 +12,9 @@ const formatEta = (value) => {
 export default function MyAppointments() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [reviewTarget, setReviewTarget] = useState(null);
+    const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
     const appointmentIds = useMemo(
         () => [...new Set(bookings.map((booking) => booking.appointmentId?._id).filter(Boolean))],
         [bookings]
@@ -108,6 +112,55 @@ export default function MyAppointments() {
         }
     };
 
+    const openReview = (booking) => {
+        setReviewTarget(booking);
+        setReviewForm({
+            rating: booking?.patientReview?.rating || 5,
+            comment: booking?.patientReview?.comment || '',
+        });
+    };
+
+    const closeReview = () => {
+        setReviewTarget(null);
+        setReviewForm({ rating: 5, comment: '' });
+    };
+
+    const submitReview = async () => {
+        if (!reviewTarget?._id) return;
+
+        if (!Number.isFinite(Number(reviewForm.rating)) || Number(reviewForm.rating) < 1 || Number(reviewForm.rating) > 5) {
+            alert('Please select a rating between 1 and 5 stars.');
+            return;
+        }
+
+        setReviewSubmitting(true);
+        try {
+            await api.patch(`/queue/bookings/${reviewTarget._id}/review`, {
+                rating: Number(reviewForm.rating),
+                comment: reviewForm.comment,
+            });
+
+            setBookings((prev) => prev.map((item) => {
+                if (item._id !== reviewTarget._id) return item;
+                return {
+                    ...item,
+                    patientReview: {
+                        rating: Number(reviewForm.rating),
+                        comment: String(reviewForm.comment || '').trim(),
+                        reviewedAt: new Date().toISOString(),
+                    },
+                };
+            }));
+
+            alert('Thanks! Your review was submitted.');
+            closeReview();
+        } catch (e) {
+            alert(e.response?.data?.message || 'Failed to submit review');
+        } finally {
+            setReviewSubmitting(false);
+        }
+    };
+
     const activeBookings = useMemo(
         () => bookings.filter((booking) => booking.status === 'confirmed'),
         [bookings]
@@ -178,10 +231,13 @@ export default function MyAppointments() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {bookings.map((booking) => {
                         const appointment = booking.appointmentId;
+                        const doctorRating = Number(appointment?.doctorId?.rating || 0);
+                        const doctorRatingCount = Number(appointment?.doctorId?.ratingCount || 0);
                         const currentToken = appointment?.currentTokenNumber || null;
                         const isCompleted = booking.status === 'completed' || booking.markedBy === 'completed';
                         const isCancelled = booking.status === 'cancelled';
                         const isWaiting = !isCompleted && !isCancelled;
+                        const hasReview = Number(booking?.patientReview?.rating) >= 1;
                         const waitMinutes = booking.estimatedWaitMinutes ?? 0;
                         const accentColor = isCompleted ? '#008060' : isCancelled ? '#dc2626' : '#005bd3';
 
@@ -208,6 +264,10 @@ export default function MyAppointments() {
                                             <div style={{ fontSize: '0.67rem', color: '#8a8a8a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Doctor</div>
                                             <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#005bd3' }}>
                                                 Dr. {appointment?.doctorId?.name || appointment?.doctorName || 'Unknown'}
+                                            </div>
+                                            <div style={{ marginTop: '0.1rem', fontSize: '0.72rem', color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '0.06rem 0.4rem' }}>
+                                                <Star size={11} fill="#f59e0b" color="#f59e0b" />
+                                                {doctorRating > 0 ? `${doctorRating.toFixed(1)} (${doctorRatingCount})` : 'No ratings'}
                                             </div>
                                         </div>
                                     </div>
@@ -271,10 +331,81 @@ export default function MyAppointments() {
                                         </button>
                                     </div>
                                 )}
+
+                                {isCompleted && (
+                                    <div style={{ padding: '0.55rem 1rem', borderTop: '1px solid #f1f2f3', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Star size={13} color={hasReview ? '#f59e0b' : '#94a3b8'} />
+                                            {hasReview
+                                                ? `Your rating: ${booking.patientReview.rating}/5`
+                                                : 'Rate your doctor consultation'}
+                                        </div>
+                                        <button
+                                            onClick={() => openReview(booking)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '0.35rem 0.75rem', background: hasReview ? '#fff7ed' : '#ebf4ff', color: hasReview ? '#b45309' : '#005bd3', border: `1px solid ${hasReview ? '#fed7aa' : '#bfdbfe'}`, borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <MessageSquare size={12} /> {hasReview ? 'Update Review' : 'Rate Doctor'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
                 </div>
+            )}
+
+            {reviewTarget && createPortal(
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40, padding: '1rem' }}>
+                    <div style={{ width: '100%', maxWidth: '540px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 24px 48px rgba(15, 23, 42, 0.18)' }}>
+                        <div style={{ padding: '0.9rem 1rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>Rate Doctor Consultation</div>
+                                <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>Dr. {reviewTarget?.appointmentId?.doctorId?.name || reviewTarget?.appointmentId?.doctorName || 'Doctor'}</div>
+                            </div>
+                            <button onClick={closeReview} style={{ border: '1px solid #e2e8f0', background: '#fff', borderRadius: '8px', width: 30, height: 30, cursor: 'pointer', color: '#64748b' }}>×</button>
+                        </div>
+
+                        <div style={{ padding: '1rem' }}>
+                            <div style={{ fontSize: '0.82rem', color: '#334155', marginBottom: '0.45rem', fontWeight: 700 }}>Your Rating</div>
+                            <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.8rem' }}>
+                                {[1, 2, 3, 4, 5].map((star) => {
+                                    const active = star <= Number(reviewForm.rating);
+                                    return (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => setReviewForm((prev) => ({ ...prev, rating: star }))}
+                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+                                            title={`${star} star${star > 1 ? 's' : ''}`}
+                                        >
+                                            <Star size={24} color={active ? '#f59e0b' : '#cbd5e1'} fill={active ? '#f59e0b' : 'none'} />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div style={{ fontSize: '0.82rem', color: '#334155', marginBottom: '0.45rem', fontWeight: 700 }}>Review (optional)</div>
+                            <textarea
+                                value={reviewForm.comment}
+                                onChange={(e) => setReviewForm((prev) => ({ ...prev, comment: e.target.value.slice(0, 500) }))}
+                                rows={4}
+                                placeholder="Share your experience with the doctor..."
+                                style={{ width: '100%', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '0.7rem 0.75rem', resize: 'vertical', fontFamily: 'inherit', fontSize: '0.85rem' }}
+                            />
+                            <div style={{ marginTop: '0.35rem', fontSize: '0.72rem', color: '#64748b', textAlign: 'right' }}>{reviewForm.comment.length}/500</div>
+                        </div>
+
+                        <div style={{ padding: '0.85rem 1rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                            <button onClick={closeReview} disabled={reviewSubmitting} style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 600, cursor: 'pointer' }}>
+                                Cancel
+                            </button>
+                            <button onClick={submitReview} disabled={reviewSubmitting} style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none', background: '#005bd3', color: '#fff', fontWeight: 700, cursor: reviewSubmitting ? 'not-allowed' : 'pointer', opacity: reviewSubmitting ? 0.65 : 1 }}>
+                                {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );

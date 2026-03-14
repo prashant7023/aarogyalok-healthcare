@@ -27,7 +27,20 @@ const doctorSchema = new mongoose.Schema(
         consultationFee: { type: Number, default: 500 },
         clinicAddress: { type: String },
         isActive: { type: Boolean, default: true },
+        ratingReviews: {
+            type: [
+                {
+                    bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true },
+                    patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
+                    rating: { type: Number, required: true, min: 1, max: 5 },
+                    comment: { type: String, trim: true, default: '' },
+                    reviewedAt: { type: Date, default: Date.now },
+                },
+            ],
+            default: [],
+        },
         rating: { type: Number, default: 0, min: 0, max: 5 },
+        ratingCount: { type: Number, default: 0, min: 0 },
     },
     { timestamps: true }
 );

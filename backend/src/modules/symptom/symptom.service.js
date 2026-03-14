@@ -116,6 +116,87 @@ const estimateWaitMinutes = (appointment) => {
     return pending * duration;
 };
 
+const getDoctorRatingStats = (doctor) => {
+    const reviews = Array.isArray(doctor?.ratingReviews)
+        ? doctor.ratingReviews.filter((entry) => {
+            const value = Number(entry?.rating);
+            return Number.isFinite(value) && value >= 1 && value <= 5;
+        })
+        : [];
+
+    if (reviews.length > 0) {
+        const total = reviews.reduce((sum, item) => sum + Number(item.rating), 0);
+        return {
+            rating: Number((total / reviews.length).toFixed(2)),
+            ratingCount: reviews.length,
+        };
+    }
+
+    return {
+        rating: Number(doctor?.rating || 0),
+        ratingCount: Number(doctor?.ratingCount || 0),
+    };
+};
+
+const withDoctorRating = (doctor) => {
+    const stats = getDoctorRatingStats(doctor);
+    return {
+        ...doctor,
+        rating: stats.rating,
+        ratingCount: stats.ratingCount,
+    };
+};
+
+const sortProvidersByRating = (providers = []) => {
+    return [...providers].sort((a, b) => {
+        const bRating = Number(b?.rating || 0);
+        const aRating = Number(a?.rating || 0);
+        if (bRating !== aRating) return bRating - aRating;
+
+        const bCount = Number(b?.ratingCount || 0);
+        const aCount = Number(a?.ratingCount || 0);
+        if (bCount !== aCount) return bCount - aCount;
+
+        return String(a?.name || '').localeCompare(String(b?.name || ''));
+    });
+};
+
+const attachRatingsToProviders = async (providers = []) => {
+    const doctorIds = [...new Set(
+        providers
+            .map((provider) => provider?._id)
+            .filter(Boolean)
+            .map((id) => String(id))
+    )];
+
+    if (doctorIds.length === 0) {
+        return providers;
+    }
+
+    const doctors = await Doctor.find({ _id: { $in: doctorIds } })
+        .select('_id rating ratingCount ratingReviews')
+        .lean();
+
+    const ratingMap = new Map(
+        doctors.map((doctor) => {
+            const stats = getDoctorRatingStats(doctor);
+            return [String(doctor._id), stats];
+        })
+    );
+
+    const enriched = providers.map((provider) => {
+        const stats = ratingMap.get(String(provider._id));
+        if (!stats) return provider;
+        return {
+            ...provider,
+            rating: stats.rating,
+            ratingCount: stats.ratingCount,
+        };
+    });
+
+    return sortProvidersByRating(enriched);
+};
+
 const getStartOfToday = () => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -154,32 +235,37 @@ const buildProvidersFromAppointments = async (aiResult, options = {}) => {
             specialization: apt.specialization || aiResult?.recommended_specialist || 'General Physician',
             clinicAddress: apt.address || '',
             rating: 0,
+            ratingCount: 0,
             fcmTokens: [],
         });
     }
 
-    return Array.from(map.values()).slice(0, 5);
+    const providers = Array.from(map.values()).slice(0, 5);
+    return attachRatingsToProviders(providers);
 };
 
 const findRecommendedProviders = async (aiResult) => {
     const doctors = await Doctor.find({ isActive: true })
-        .select('name specialization clinicAddress rating fcmTokens')
+        .select('name specialization clinicAddress rating ratingCount ratingReviews fcmTokens')
         .lean();
+
+    const doctorsWithRating = doctors.map(withDoctorRating);
 
     // Strong rule: if AI says primary/general physician, only show general-primary tracks.
     if (isGeneralPrimaryIntent(aiResult)) {
         const generalOnly = doctors
+            .map(withDoctorRating)
             .filter((doc) => GENERAL_SPECIALIST_FALLBACK.test(doc.specialization || ''))
             .sort((a, b) => (b.rating || 0) - (a.rating || 0))
             .slice(0, 5);
 
         if (generalOnly.length > 0) {
-            return { providers: generalOnly, specialistMatchFound: true, providerSource: 'doctor-specialization-general' };
+            return { providers: sortProvidersByRating(generalOnly), specialistMatchFound: true, providerSource: 'doctor-specialization-general' };
         }
     }
 
     const keywords = getSpecializationKeywords(aiResult);
-    const ranked = doctors
+    const ranked = doctorsWithRating
         .map((doc) => ({
             ...doc,
             _score: scoreDoctorRelevance(doc, keywords),
@@ -190,17 +276,17 @@ const findRecommendedProviders = async (aiResult) => {
         .map(({ _score, ...doc }) => doc);
 
     if (ranked.length > 0) {
-        return { providers: ranked, specialistMatchFound: true, providerSource: 'doctor-specialization-ranked' };
+        return { providers: sortProvidersByRating(ranked), specialistMatchFound: true, providerSource: 'doctor-specialization-ranked' };
     }
 
     // Prefer primary/general doctors as safe fallback rather than unrelated specialists.
-    const generalFallback = doctors
+    const generalFallback = doctorsWithRating
         .filter((doc) => GENERAL_SPECIALIST_FALLBACK.test(doc.specialization || ''))
         .sort((a, b) => (b.rating || 0) - (a.rating || 0))
         .slice(0, 5);
 
     if (generalFallback.length > 0) {
-        return { providers: generalFallback, specialistMatchFound: false, providerSource: 'doctor-specialization-general-fallback' };
+        return { providers: sortProvidersByRating(generalFallback), specialistMatchFound: false, providerSource: 'doctor-specialization-general-fallback' };
     }
 
     // Fallback 1: derive providers from appointment records with specialization match.
@@ -304,6 +390,7 @@ const providersFromAppointments = (appointments = []) => {
             specialization: apt.specialization || '',
             clinicAddress: apt.address || '',
             rating: 0,
+            ratingCount: 0,
             fcmTokens: [],
         });
     }
@@ -357,7 +444,7 @@ const analyze = async (userId, symptomsInput, options = {}) => {
         const appointmentFallback = await findSuggestedAppointments(aiResult, []);
         if (appointmentFallback.length > 0) {
             suggestedAppointments = appointmentFallback;
-            providers = providersFromAppointments(appointmentFallback);
+            providers = await attachRatingsToProviders(providersFromAppointments(appointmentFallback));
             specialistMatchFound = true;
             providerSource = 'appointment-specialization-direct';
         }
@@ -398,6 +485,7 @@ const analyze = async (userId, symptomsInput, options = {}) => {
                 specialization: doc.specialization,
                 clinicAddress: doc.clinicAddress,
                 rating: doc.rating,
+                ratingCount: doc.ratingCount || 0,
             })),
             suggestedAppointments,
             queueRecommendation,

@@ -123,7 +123,7 @@ const frequencyToScheduleTimes = (frequency = '') => {
     return ['09:00'];
 };
 
-const createMedicationRemindersFromMap = async (userId, medicineMap = []) => {
+const createMedicationRemindersFromMap = async (userId, medicineMap = [], prescribedByDoctorId = null) => {
     const startDate = new Date();
 
     for (const med of medicineMap) {
@@ -148,6 +148,7 @@ const createMedicationRemindersFromMap = async (userId, medicineMap = []) => {
             scheduleTimes: frequencyToScheduleTimes(med.frequency),
             startDate,
             endDate,
+            prescribedByDoctorId,
         });
     }
 };
@@ -177,7 +178,7 @@ const createRecord = async (userId, data, fileUrl, uploadedFile) => {
     });
 
     if (medicineMap.length) {
-        await createMedicationRemindersFromMap(userId, medicineMap);
+        await createMedicationRemindersFromMap(userId, medicineMap, data?.createdByDoctorId || null);
     }
 
     return record;

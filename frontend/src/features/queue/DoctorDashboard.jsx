@@ -38,14 +38,24 @@ export default function DoctorDashboard() {
                     <h1>Doctor Dashboard</h1>
                     <p>Welcome back, Dr. {user?.name}</p>
                 </div>
-                <button
-                    className="btn btn-primary"
-                    onClick={() => navigate('/queue/create-appointment')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                    <Plus size={20} />
-                    Create Appointment
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => navigate('/queue/patient-crm')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <Users size={18} />
+                        Patient CRM
+                    </button>
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => navigate('/queue/create-appointment')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <Plus size={20} />
+                        Create Appointment
+                    </button>
+                </div>
             </div>
 
             <div className="card queue-filter-card">

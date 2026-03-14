@@ -24,6 +24,18 @@ const getDoctorAppointments = asyncHandler(async (req, res) => {
     sendSuccess(res, appointments, 'Appointments fetched successfully');
 });
 
+const getDoctorConsultedPatients = asyncHandler(async (req, res) => {
+    const data = await appointmentService.getDoctorConsultedPatients(req.user._id, {
+        search: req.query.search,
+    });
+    sendSuccess(res, data, 'Consulted patients fetched successfully');
+});
+
+const getDoctorPatientDetails = asyncHandler(async (req, res) => {
+    const data = await appointmentService.getDoctorPatientDetails(req.user._id, req.params.patientId);
+    sendSuccess(res, data, 'Doctor patient details fetched successfully');
+});
+
 // Get appointment details with patient bookings
 const getAppointmentDetails = asyncHandler(async (req, res) => {
     const data = await appointmentService.getAppointmentDetails(
@@ -63,6 +75,7 @@ const addOfflinePatientToQueue = asyncHandler(async (req, res) => {
 const getAllAppointments = asyncHandler(async (req, res) => {
     const filters = {
         doctorId: req.query.doctorId,
+        doctorSearch: req.query.doctorSearch,
         specialization: req.query.specialization,
         fromDate: req.query.fromDate,
         date: req.query.date,
@@ -73,6 +86,7 @@ const getAllAppointments = asyncHandler(async (req, res) => {
 
 const getNearbyAppointments = asyncHandler(async (req, res) => {
     const filters = {
+        doctorSearch: req.query.doctorSearch,
         specialization: req.query.specialization,
         fromDate: req.query.fromDate,
         date: req.query.date,
@@ -121,6 +135,15 @@ const cancelBooking = asyncHandler(async (req, res) => {
     sendSuccess(res, booking, 'Booking cancelled successfully');
 });
 
+const submitBookingReview = asyncHandler(async (req, res) => {
+    const booking = await appointmentService.submitBookingReview(
+        req.params.bookingId,
+        req.user._id,
+        req.body
+    );
+    sendSuccess(res, booking, 'Review submitted successfully');
+});
+
 // ========== DELETE CONTROLLERS (For clearing data) ==========
 
 // Delete all appointments
@@ -151,6 +174,8 @@ module.exports = {
     // Doctor
     createAppointment,
     getDoctorAppointments,
+    getDoctorConsultedPatients,
+    getDoctorPatientDetails,
     getAppointmentDetails,
     markPatient,
     addOfflinePatientToQueue,
@@ -161,6 +186,7 @@ module.exports = {
     getAppointmentWithSlots,
     bookSlot,
     getPatientBookings,
+    submitBookingReview,
     cancelBooking,
     
     // Delete

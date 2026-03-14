@@ -19,3 +19,90 @@
   transition: all 0.2s;
   border: 1px solid var(--border);
 }
+
+.queue-crm-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+}
+
+.queue-crm-kpi-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  background: rgba(110, 177, 255, 0.12);
+}
+
+.queue-crm-kpi-meta p {
+  margin: 0;
+  color: var(--text-mid);
+  font-size: 0.85rem;
+}
+
+.queue-crm-kpi-meta h3 {
+  margin: 0.2rem 0 0;
+}
+
+.queue-crm-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.15rem 0.55rem;
+}
+
+.queue-crm-search-wrap .input {
+  margin: 0;
+}
+
+.queue-crm-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.queue-crm-table th,
+.queue-crm-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.85rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.queue-crm-table th {
+  color: var(--text-mid);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.queue-crm-patient-name {
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.queue-crm-muted {
+  color: var(--text-mid);
+  font-size: 0.84rem;
+  margin-top: 0.25rem;
+}
+
+.queue-crm-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 0.55rem;
+}
+
+.queue-crm-empty {
+  text-align: center;
+  color: var(--text-mid);
+  padding: 2rem 1rem;
+}

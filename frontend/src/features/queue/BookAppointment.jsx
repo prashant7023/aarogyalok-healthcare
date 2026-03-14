@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Calendar, User, MapPin, DollarSign, Hash, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, User, MapPin, DollarSign, Hash, Clock, Star } from 'lucide-react';
 import api from '../../shared/utils/api';
 
 export default function BookAppointment() {
@@ -18,6 +18,8 @@ export default function BookAppointment() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [tokenPopup, setTokenPopup] = useState(null);
+    const doctorRating = Number(appointment?.doctorId?.rating || 0);
+    const doctorRatingCount = Number(appointment?.doctorId?.ratingCount || 0);
 
     if (!appointment) {
         return (
@@ -143,6 +145,10 @@ export default function BookAppointment() {
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                             <Hash size={13} />
                             Issued tokens: {appointment.totalTokensIssued || 0}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Star size={13} fill="#facc15" color="#facc15" />
+                            {doctorRating > 0 ? `${doctorRating.toFixed(1)} (${doctorRatingCount} reviews)` : 'No ratings yet'}
                         </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'start', gap: '0.35rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.2)', fontSize: '0.85rem' }}>

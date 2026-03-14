@@ -68,6 +68,24 @@ const bookingSchema = new mongoose.Schema(
             type: String,
             enum: ['pending', 'present', 'absent', 'completed'],
             default: 'pending'
+        },
+        patientReview: {
+            rating: {
+                type: Number,
+                min: 1,
+                max: 5,
+                default: null,
+            },
+            comment: {
+                type: String,
+                trim: true,
+                default: '',
+                maxlength: 500,
+            },
+            reviewedAt: {
+                type: Date,
+                default: null,
+            }
         }
     },
     { timestamps: true }

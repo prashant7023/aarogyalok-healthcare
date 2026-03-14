@@ -18,6 +18,7 @@ const createRecord = asyncHandler(async (req, res) => {
     const payload = {
         ...req.body,
         fileType,
+        createdByDoctorId: isPrivileged(req.user.role) ? req.user._id : null,
     };
 
     const record = await recordService.createRecord(userId, payload, fileUrl, req.file);

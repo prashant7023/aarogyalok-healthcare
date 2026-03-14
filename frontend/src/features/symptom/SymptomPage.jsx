@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import api from '../../shared/utils/api';
-import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing } from 'lucide-react';
+import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
 import './symptom.css';
@@ -373,6 +373,12 @@ export default function SymptomPage() {
                                             <div key={`${doc.name}-${idx}`} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '0.55rem 0.7rem', background: 'var(--surface-subtle)' }}>
                                                 <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-dark)' }}>{doc.name}</div>
                                                 <div style={{ fontSize: '0.78rem', color: 'var(--text-mid)' }}>{doc.specialization || 'General Physician'} {doc.clinicAddress ? `• ${doc.clinicAddress}` : ''}</div>
+                                                <div style={{ fontSize: '0.76rem', color: '#9a6b00', marginTop: '0.2rem', display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fff7e6', border: '1px solid #ffe2a8', borderRadius: '999px', padding: '0.08rem 0.45rem' }}>
+                                                    <Star size={11} fill="#f59e0b" color="#f59e0b" />
+                                                    {Number(doc.rating || 0) > 0
+                                                        ? `${Number(doc.rating).toFixed(1)} (${Number(doc.ratingCount || 0)})`
+                                                        : 'No ratings'}
+                                                </div>
                                                 <button
                                                     className="btn btn-secondary btn-sm"
                                                     style={{ marginTop: '0.45rem' }}

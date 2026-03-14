@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { issueToken, getQueueStatus, callNext, getMyToken } = require('./queue.controller');
 const appointmentController = require('./appointment.controller');
-const { protect } = require('../../shared/middleware/auth.middleware');
+const { protect, restrict } = require('../../shared/middleware/auth.middleware');
 
 const router = Router();
 
@@ -17,6 +17,12 @@ router.post('/appointments', protect, appointmentController.createAppointment);
 
 // Get doctor's appointments (dashboard)
 router.get('/doctor/appointments', protect, appointmentController.getDoctorAppointments);
+
+// Doctor CRM - consulted patients list
+router.get('/doctor/consulted-patients', protect, restrict('doctor'), appointmentController.getDoctorConsultedPatients);
+
+// Doctor CRM - consulted patient full details
+router.get('/doctor/patients/:patientId', protect, restrict('doctor'), appointmentController.getDoctorPatientDetails);
 
 // Get appointment details with patient list
 router.get('/doctor/appointments/:appointmentId', protect, appointmentController.getAppointmentDetails);
@@ -42,6 +48,9 @@ router.post('/bookings', protect, appointmentController.bookSlot);
 
 // Get my bookings
 router.get('/my-bookings', protect, appointmentController.getPatientBookings);
+
+// Submit or update my review for a completed booking
+router.patch('/bookings/:bookingId/review', protect, appointmentController.submitBookingReview);
 
 // Cancel booking
 router.delete('/bookings/:bookingId', protect, appointmentController.cancelBooking);

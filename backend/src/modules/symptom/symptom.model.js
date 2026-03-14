@@ -34,6 +34,7 @@ const symptomSchema = new mongoose.Schema(
                     specialization: String,
                     clinicAddress: String,
                     rating: Number,
+                    ratingCount: Number,
                 },
             ],
             suggestedAppointments: [

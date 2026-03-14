@@ -2,9 +2,14 @@ const Appointment = require('./appointment.model');
 const Booking = require('./booking.model');
 const Doctor = require('../auth/doctor.model');
 const Patient = require('../auth/patient.model');
+const HealthRecord = require('../records/record.model');
+const Medication = require('../medication/models/medication.model');
+const ReminderLog = require('../medication/models/reminderLog.model');
 const { AppError } = require('../../shared/middleware/error.middleware');
 
 const ACTIVE_QUEUE_BOOKING_STATUS = 'confirmed';
+
+const escapeRegExp = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const toNumberOrNull = (value) => {
     const parsed = Number(value);
@@ -82,6 +87,96 @@ const resolveAppointmentDoctorName = async (appointment) => {
 const resolveAppointmentsDoctorNames = async (appointments = []) => {
     await Promise.all(appointments.map((appointment) => resolveAppointmentDoctorName(appointment)));
     return appointments;
+};
+
+const getDoctorRatingStats = (doctor) => {
+    const reviews = Array.isArray(doctor?.ratingReviews)
+        ? doctor.ratingReviews.filter((item) => {
+            const rating = Number(item?.rating);
+            return Number.isFinite(rating) && rating >= 1 && rating <= 5;
+        })
+        : [];
+
+    if (reviews.length > 0) {
+        const total = reviews.reduce((sum, item) => sum + Number(item.rating), 0);
+        const avg = Number((total / reviews.length).toFixed(2));
+        return { rating: avg, ratingCount: reviews.length };
+    }
+
+    const fallbackRating = Number(doctor?.rating || 0);
+    const fallbackCount = Number(doctor?.ratingCount || 0);
+    return {
+        rating: Number.isFinite(fallbackRating) ? fallbackRating : 0,
+        ratingCount: Number.isFinite(fallbackCount) ? fallbackCount : 0,
+    };
+};
+
+const applyDoctorRatingStats = (doctor) => {
+    if (!doctor) return doctor;
+    const stats = getDoctorRatingStats(doctor);
+    doctor.rating = stats.rating;
+    doctor.ratingCount = stats.ratingCount;
+    return doctor;
+};
+
+const enrichAppointmentsWithDoctorRatings = (appointments = []) => {
+    appointments.forEach((appointment) => {
+        if (appointment?.doctorId) {
+            applyDoctorRatingStats(appointment.doctorId);
+        }
+    });
+    return appointments;
+};
+
+const compareDoctorRatingDesc = (a, b) => {
+    const aRating = Number(a?.doctorId?.rating || 0);
+    const bRating = Number(b?.doctorId?.rating || 0);
+    if (bRating !== aRating) return bRating - aRating;
+
+    const aCount = Number(a?.doctorId?.ratingCount || 0);
+    const bCount = Number(b?.doctorId?.ratingCount || 0);
+    if (bCount !== aCount) return bCount - aCount;
+
+    const aDate = new Date(a?.appointmentDate || 0).getTime();
+    const bDate = new Date(b?.appointmentDate || 0).getTime();
+    if (aDate !== bDate) return aDate - bDate;
+
+    return new Date(a?.createdAt || 0).getTime() - new Date(b?.createdAt || 0).getTime();
+};
+
+const applyDoctorSearchToQuery = async (query, doctorSearch) => {
+    const text = String(doctorSearch || '').trim();
+    if (!text) return;
+
+    const regex = new RegExp(escapeRegExp(text), 'i');
+    const matchedDoctors = await Doctor.find({
+        $or: [{ name: regex }, { email: regex }],
+    })
+        .select('_id')
+        .lean();
+
+    const doctorIds = matchedDoctors.map((doc) => doc._id);
+
+    if (doctorIds.length > 0) {
+        query.$or = [
+            { doctorId: { $in: doctorIds } },
+            { doctorName: regex },
+        ];
+        return;
+    }
+
+    // Fallback for records that only store doctorName snapshot.
+    query.doctorName = regex;
+};
+
+const recalculateDoctorRating = async (doctorId) => {
+    if (!doctorId) return;
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) return;
+    const { rating, ratingCount } = getDoctorRatingStats(doctor);
+    doctor.rating = rating;
+    doctor.ratingCount = ratingCount;
+    await doctor.save();
 };
 
 const recalculateQueueForAppointment = async (appointmentId, io) => {
@@ -207,6 +302,256 @@ const getDoctorAppointments = async (doctorId, date) => {
     const sortOrder = date ? { appointmentDate: 1, createdAt: -1 } : { appointmentDate: -1, createdAt: -1 };
 
     return Appointment.find(query).sort(sortOrder);
+};
+
+const getDoctorPatientDetails = async (doctorId, patientId) => {
+    const patient = await Patient.findById(patientId).select('name email phone role').lean();
+    if (!patient) {
+        throw new AppError('Patient not found', 404);
+    }
+
+    const doctorAppointmentIds = await Appointment.find({ doctorId }).distinct('_id');
+    if (!doctorAppointmentIds.length) {
+        throw new AppError('Patient not found in your consulted list', 404);
+    }
+
+    const bookings = await Booking.find({
+        patientId,
+        appointmentId: { $in: doctorAppointmentIds },
+    })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean();
+
+    const consultedBookings = bookings.filter((booking) => {
+        const status = String(booking?.status || '').toLowerCase();
+        const markedBy = String(booking?.markedBy || '').toLowerCase();
+        return status === 'completed' || markedBy === 'completed';
+    });
+
+    if (!consultedBookings.length) {
+        throw new AppError('Patient not found in your consulted list', 404);
+    }
+
+    const appointmentIds = [...new Set(bookings.map((item) => String(item.appointmentId)).filter(Boolean))];
+    const appointments = await Appointment.find({ _id: { $in: appointmentIds }, doctorId })
+        .select('title specialization appointmentDate address consultationDurationMinutes price scheduleStartTime')
+        .lean();
+    const appointmentMap = new Map(appointments.map((item) => [String(item._id), item]));
+
+    const doctorBookings = bookings.map((booking) => {
+        const appointment = appointmentMap.get(String(booking.appointmentId));
+        return {
+            _id: booking._id,
+            appointmentId: booking.appointmentId,
+            appointmentTitle: appointment?.title || '',
+            specialization: appointment?.specialization || '',
+            appointmentDate: appointment?.appointmentDate || null,
+            address: appointment?.address || '',
+            consultationDurationMinutes: appointment?.consultationDurationMinutes || null,
+            tokenNumber: booking.tokenNumber,
+            status: booking.status,
+            markedBy: booking.markedBy,
+            description: booking.description || '',
+            patientReview: booking.patientReview || null,
+            consultedAt: booking.updatedAt || booking.createdAt || null,
+        };
+    });
+
+    const records = await HealthRecord.find({
+        userId: patientId,
+        createdByDoctorId: doctorId,
+    })
+        .sort({ createdAt: -1 })
+        .lean();
+
+    const medications = await Medication.find({
+        userId: patientId,
+        prescribedByDoctorId: doctorId,
+    })
+        .sort({ createdAt: -1 })
+        .lean();
+
+    const medicationIds = medications.map((item) => item._id);
+    const logs = medicationIds.length
+        ? await ReminderLog.find({
+            medicationId: { $in: medicationIds },
+            userId: patientId,
+        }).lean()
+        : [];
+
+    const logStatsByMedication = new Map();
+    logs.forEach((log) => {
+        const key = String(log.medicationId);
+        if (!logStatsByMedication.has(key)) {
+            logStatsByMedication.set(key, {
+                total: 0,
+                taken: 0,
+                skipped: 0,
+                missed: 0,
+                pending: 0,
+                lastScheduledAt: null,
+                lastStatus: null,
+            });
+        }
+
+        const stats = logStatsByMedication.get(key);
+        stats.total += 1;
+        const status = String(log.status || 'pending').toLowerCase();
+        if (status === 'taken') stats.taken += 1;
+        else if (status === 'skipped') stats.skipped += 1;
+        else if (status === 'missed') stats.missed += 1;
+        else stats.pending += 1;
+
+        const currentTs = new Date(log.scheduledAt || 0).getTime();
+        const prevTs = new Date(stats.lastScheduledAt || 0).getTime();
+        if (currentTs >= prevTs) {
+            stats.lastScheduledAt = log.scheduledAt || null;
+            stats.lastStatus = status;
+        }
+    });
+
+    const medicationTracking = medications.map((med) => {
+        const stats = logStatsByMedication.get(String(med._id)) || {
+            total: 0,
+            taken: 0,
+            skipped: 0,
+            missed: 0,
+            pending: 0,
+            lastScheduledAt: null,
+            lastStatus: null,
+        };
+        const adherenceRate = stats.total > 0 ? Math.round((stats.taken / stats.total) * 100) : 0;
+        return {
+            _id: med._id,
+            medicineName: med.medicineName,
+            dosage: med.dosage || '',
+            scheduleTimes: med.scheduleTimes || [],
+            startDate: med.startDate || null,
+            endDate: med.endDate || null,
+            isActive: !!med.isActive,
+            adherence: {
+                ...stats,
+                adherenceRate,
+            },
+        };
+    });
+
+    const totals = medicationTracking.reduce(
+        (acc, med) => {
+            acc.total += med.adherence.total;
+            acc.taken += med.adherence.taken;
+            acc.skipped += med.adherence.skipped;
+            acc.missed += med.adherence.missed;
+            acc.pending += med.adherence.pending;
+            return acc;
+        },
+        { total: 0, taken: 0, skipped: 0, missed: 0, pending: 0 }
+    );
+
+    return {
+        patient: {
+            _id: patient._id,
+            name: patient.name,
+            email: patient.email,
+            phone: patient.phone,
+        },
+        summary: {
+            totalConsultations: consultedBookings.length,
+            totalBookings: doctorBookings.length,
+            recordsCount: records.length,
+            medicationsCount: medicationTracking.length,
+            adherence: {
+                ...totals,
+                adherenceRate: totals.total > 0 ? Math.round((totals.taken / totals.total) * 100) : 0,
+            },
+        },
+        bookings: doctorBookings,
+        records,
+        medications: medicationTracking,
+    };
+};
+
+// Get all consulted patients for doctor CRM
+const getDoctorConsultedPatients = async (doctorId, filters = {}) => {
+    const bookings = await Booking.find({
+        $or: [{ status: 'completed' }, { markedBy: 'completed' }],
+    })
+        .populate({
+            path: 'appointmentId',
+            select: 'doctorId title specialization appointmentDate',
+            match: { doctorId },
+        })
+        .populate('patientId', 'name email phone')
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean();
+
+    const consultedBookings = bookings.filter((booking) => booking.appointmentId);
+    const byPatient = new Map();
+
+    consultedBookings.forEach((booking) => {
+        const patientIdValue = booking?.patientId?._id ? String(booking.patientId._id) : null;
+        const phone = String(booking.patientId?.phone || booking.patientPhone || '').trim();
+        const name = String(booking.patientId?.name || booking.patientName || 'Unknown patient').trim();
+        const key = patientIdValue || `offline:${phone || name.toLowerCase()}`;
+        const consultedAt = booking?.updatedAt || booking?.createdAt || new Date(0);
+
+        const nextRow = {
+            key,
+            patientId: patientIdValue,
+            name,
+            email: booking.patientId?.email || '',
+            phone,
+            gender: booking.patientGender || '',
+            age: booking.patientAge || null,
+            totalConsultations: 1,
+            lastConsultedAt: consultedAt,
+            lastAppointmentTitle: booking.appointmentId?.title || '',
+            specialization: booking.appointmentId?.specialization || '',
+            lastReviewRating: Number(booking?.patientReview?.rating) || 0,
+            lastReviewComment: booking?.patientReview?.comment || '',
+        };
+
+        if (!byPatient.has(key)) {
+            byPatient.set(key, nextRow);
+            return;
+        }
+
+        const current = byPatient.get(key);
+        current.totalConsultations += 1;
+
+        if (new Date(consultedAt).getTime() > new Date(current.lastConsultedAt).getTime()) {
+            current.name = nextRow.name || current.name;
+            current.email = nextRow.email || current.email;
+            current.phone = nextRow.phone || current.phone;
+            current.gender = nextRow.gender || current.gender;
+            current.age = nextRow.age || current.age;
+            current.lastConsultedAt = nextRow.lastConsultedAt;
+            current.lastAppointmentTitle = nextRow.lastAppointmentTitle;
+            current.specialization = nextRow.specialization;
+            current.lastReviewRating = nextRow.lastReviewRating;
+            current.lastReviewComment = nextRow.lastReviewComment;
+        }
+    });
+
+    let patients = Array.from(byPatient.values()).sort(
+        (a, b) => new Date(b.lastConsultedAt).getTime() - new Date(a.lastConsultedAt).getTime()
+    );
+
+    const search = String(filters.search || '').trim().toLowerCase();
+    if (search) {
+        patients = patients.filter((row) => {
+            const haystack = `${row.name} ${row.email} ${row.phone}`.toLowerCase();
+            return haystack.includes(search);
+        });
+    }
+
+    return {
+        summary: {
+            totalUniquePatients: patients.length,
+            totalConsultations: consultedBookings.length,
+        },
+        patients,
+    };
 };
 
 // Get appointment details with patient bookings
@@ -336,12 +681,15 @@ const getAllAppointments = async (filters = {}) => {
         query.appointmentDate = asDayRange(filters.date);
     }
 
+    await applyDoctorSearchToQuery(query, filters.doctorSearch);
+
     const appointments = await Appointment.find(query)
-        .populate('doctorId', 'name email')
-        .sort({ appointmentDate: 1 });
+        .populate('doctorId', 'name email specialization clinicAddress rating ratingCount ratingReviews')
+        .sort({ appointmentDate: 1, createdAt: 1 });
 
     await resolveAppointmentsDoctorNames(appointments);
-    return appointments;
+    enrichAppointmentsWithDoctorRatings(appointments);
+    return appointments.sort(compareDoctorRatingDesc);
 };
 
 const getNearbyAppointments = async (filters = {}) => {
@@ -375,6 +723,8 @@ const getNearbyAppointments = async (filters = {}) => {
         geoQuery.appointmentDate = asDayRange(filters.date);
     }
 
+    await applyDoctorSearchToQuery(geoQuery, filters.doctorSearch);
+
     const maxDistance = distanceKm * 1000;
 
     const nearbyAppointments = await Appointment.aggregate([
@@ -404,13 +754,46 @@ const getNearbyAppointments = async (filters = {}) => {
         distanceKm: Number((appointment.distanceMeters / 1000).toFixed(2)),
     }));
 
-    return mapped;
+    const doctorIds = [...new Set(mapped.map((item) => item.doctorId).filter(Boolean).map((id) => String(id)))];
+    if (doctorIds.length > 0) {
+        const doctors = await Doctor.find({ _id: { $in: doctorIds } })
+            .select('_id rating ratingCount ratingReviews')
+            .lean();
+
+        const ratingMap = new Map(
+            doctors.map((doc) => {
+                const stats = getDoctorRatingStats(doc);
+                return [String(doc._id), stats];
+            })
+        );
+
+        mapped.forEach((item) => {
+            const stats = ratingMap.get(String(item.doctorId));
+            if (stats) {
+                item.doctorRating = stats.rating;
+                item.doctorRatingCount = stats.ratingCount;
+            } else {
+                item.doctorRating = 0;
+                item.doctorRatingCount = 0;
+            }
+        });
+    }
+
+    return mapped.sort((a, b) => {
+        const ratingDiff = Number(b.doctorRating || 0) - Number(a.doctorRating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+
+        const countDiff = Number(b.doctorRatingCount || 0) - Number(a.doctorRatingCount || 0);
+        if (countDiff !== 0) return countDiff;
+
+        return Number(a.distanceMeters || 0) - Number(b.distanceMeters || 0);
+    });
 };
 
 // Get appointment queue details
 const getAppointmentWithSlots = async (appointmentId) => {
     const appointment = await Appointment.findById(appointmentId)
-        .populate('doctorId', 'name email phone');
+        .populate('doctorId', 'name email phone specialization clinicAddress rating ratingCount ratingReviews');
 
     if (!appointment) {
         throw new AppError('Appointment not found', 404);
@@ -419,9 +802,12 @@ const getAppointmentWithSlots = async (appointmentId) => {
     await recalculateQueueForAppointment(appointmentId);
 
     const refreshedAppointment = await Appointment.findById(appointmentId)
-        .populate('doctorId', 'name email phone');
+        .populate('doctorId', 'name email phone specialization clinicAddress rating ratingCount ratingReviews');
 
     await resolveAppointmentDoctorName(refreshedAppointment);
+    if (refreshedAppointment?.doctorId) {
+        applyDoctorRatingStats(refreshedAppointment.doctorId);
+    }
 
     const queue = await Booking.find({
         appointmentId,
@@ -507,7 +893,7 @@ const getPatientBookings = async (patientId) => {
     const bookings = await Booking.find({ patientId })
         .populate({
             path: 'appointmentId',
-            populate: { path: 'doctorId', select: 'name email' }
+            populate: { path: 'doctorId', select: 'name email specialization clinicAddress rating ratingCount ratingReviews' }
         })
         .sort({ createdAt: -1 });
 
@@ -517,7 +903,84 @@ const getPatientBookings = async (patientId) => {
             .map((booking) => resolveAppointmentDoctorName(booking.appointmentId))
     );
 
+    bookings.forEach((booking) => {
+        if (booking?.appointmentId?.doctorId) {
+            applyDoctorRatingStats(booking.appointmentId.doctorId);
+        }
+    });
+
     return bookings;
+};
+
+const submitBookingReview = async (bookingId, patientId, reviewData = {}) => {
+    const booking = await Booking.findById(bookingId).populate('appointmentId');
+
+    if (!booking) {
+        throw new AppError('Booking not found', 404);
+    }
+
+    if (!booking.patientId || booking.patientId.toString() !== patientId.toString()) {
+        throw new AppError('Unauthorized review access', 403);
+    }
+
+    const isCompleted = booking.status === 'completed' || booking.markedBy === 'completed';
+    if (!isCompleted) {
+        throw new AppError('You can review only after appointment completion', 400);
+    }
+
+    const rating = Number(reviewData.rating);
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+        throw new AppError('Rating must be between 1 and 5', 400);
+    }
+
+    const comment = String(reviewData.comment || '').trim();
+    if (comment.length > 500) {
+        throw new AppError('Review comment must be 500 characters or less', 400);
+    }
+
+    booking.patientReview = {
+        rating,
+        comment,
+        reviewedAt: new Date(),
+    };
+
+    await booking.save();
+
+    const doctorId = getDoctorIdValue(booking?.appointmentId?.doctorId);
+
+    if (doctorId) {
+        const doctor = await Doctor.findById(doctorId);
+        if (doctor) {
+            if (!Array.isArray(doctor.ratingReviews)) {
+                doctor.ratingReviews = [];
+            }
+
+            const reviewEntry = {
+                bookingId: booking._id,
+                patientId,
+                rating,
+                comment,
+                reviewedAt: new Date(),
+            };
+
+            const idx = doctor.ratingReviews.findIndex(
+                (entry) => String(entry.bookingId) === String(booking._id)
+            );
+
+            if (idx >= 0) {
+                doctor.ratingReviews[idx] = reviewEntry;
+            } else {
+                doctor.ratingReviews.push(reviewEntry);
+            }
+
+            const stats = getDoctorRatingStats(doctor);
+            doctor.rating = stats.rating;
+            doctor.ratingCount = stats.ratingCount;
+            await doctor.save();
+        }
+    }
+
+    return booking;
 };
 
 // Cancel booking
@@ -596,6 +1059,8 @@ module.exports = {
     // Doctor services
     createAppointment,
     getDoctorAppointments,
+    getDoctorConsultedPatients,
+    getDoctorPatientDetails,
     getAppointmentDetails,
     markPatient,
     addOfflinePatientToQueue,
@@ -606,6 +1071,7 @@ module.exports = {
     getAppointmentWithSlots,
     bookSlot,
     getPatientBookings,
+    submitBookingReview,
     cancelBooking,
     
     // Delete services
