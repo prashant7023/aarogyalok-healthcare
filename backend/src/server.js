@@ -6,7 +6,7 @@ const medicationModule = require('./modules/medication');
 const { initFirebaseAdmin } = require('./config/firebase.admin');
 require('dotenv').config();
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 connectDB();
 
