@@ -175,20 +175,24 @@ export default function DashboardPage() {
             setLoading(true);
             setError('');
             try {
-                const queueRequest = isEndUserRole
-                    ? api.get('/queue/my-bookings')
-                    : (isProviderRole ? api.get('/queue/doctor/appointments') : api.get('/queue/my-bookings'));
+                const doctorAppointmentsRequest = isProviderRole
+                    ? api.get('/queue/doctor/appointments')
+                    : Promise.resolve({ data: { data: [] } });
+                const bookingRequest = isProviderRole
+                    ? api.get('/queue/doctor/bookings')
+                    : api.get('/queue/my-bookings');
                 const doctorAnalyticsRequest = isProviderRole
                     ? api.get('/queue/doctor/analytics?days=14')
                     : Promise.resolve({ data: { data: null } });
 
-                const [symptomsRes, medsRes, adherenceRes, remindersRes, recordsRes, queueRes, doctorAnalyticsRes] = await Promise.allSettled([
+                const [symptomsRes, medsRes, adherenceRes, remindersRes, recordsRes, doctorAppointmentsRes, bookingRes, doctorAnalyticsRes] = await Promise.allSettled([
                     api.get('/symptom/history'),
                     api.get('/medication'),
                     api.get('/medication/adherence?days=7'),
                     api.get('/medication/reminders/today'),
                     api.get('/records'),
-                    queueRequest,
+                    doctorAppointmentsRequest,
+                    bookingRequest,
                     doctorAnalyticsRequest,
                 ]);
 
@@ -212,24 +216,28 @@ export default function DashboardPage() {
                 let doctorCompletedSessions = 0;
                 let doctorCancelledSessions = 0;
                 let doctorAvgTokens = 0;
+                let queueData = [];
 
-                if (queueRes.status === 'fulfilled') {
-                    const queueData = queueRes.value?.data?.data || [];
-                    if (isEndUserRole) {
-                        queuePrimary = queueData.filter((b) => b?.status === 'confirmed').length;
-                        queueSecondary = queueData.length;
-                    } else {
-                        doctorTotalAppointments = queueData.length;
-                        doctorCompletedSessions = queueData.filter((apt) => String(apt?.status || '').toLowerCase() === 'completed').length;
-                        doctorCancelledSessions = queueData.filter((apt) => String(apt?.status || '').toLowerCase() === 'cancelled').length;
+                if (isEndUserRole) {
+                    const patientBookings = bookingRes.status === 'fulfilled' ? (bookingRes.value?.data?.data || []) : [];
+                    queueData = patientBookings;
+                    queuePrimary = patientBookings.filter((b) => b?.status === 'confirmed').length;
+                    queueSecondary = patientBookings.length;
+                } else if (isProviderRole) {
+                    const doctorAppointments = doctorAppointmentsRes.status === 'fulfilled' ? (doctorAppointmentsRes.value?.data?.data || []) : [];
+                    const doctorBookings = bookingRes.status === 'fulfilled' ? (bookingRes.value?.data?.data || []) : [];
+
+                    queueData = doctorBookings;
+                    doctorTotalAppointments = doctorAppointments.length;
+                    doctorCompletedSessions = doctorAppointments.filter((apt) => String(apt?.status || '').toLowerCase() === 'completed').length;
+                    doctorCancelledSessions = doctorAppointments.filter((apt) => String(apt?.status || '').toLowerCase() === 'cancelled').length;
                         doctorActiveSessions = Math.max(doctorTotalAppointments - doctorCompletedSessions - doctorCancelledSessions, 0);
 
-                        const totalTokens = queueData.reduce((sum, apt) => sum + toNum(apt?.totalTokensIssued), 0);
+                        const totalTokens = doctorAppointments.reduce((sum, apt) => sum + toNum(apt?.totalTokensIssued), 0);
                         doctorAvgTokens = doctorTotalAppointments ? Math.round((totalTokens / doctorTotalAppointments) * 10) / 10 : 0;
 
-                        queuePrimary = queueData.length;
+                        queuePrimary = doctorBookings.length;
                         queueSecondary = totalTokens;
-                    }
                 }
 
                 if (!mounted) return;
@@ -257,7 +265,7 @@ export default function DashboardPage() {
                     medications,
                     remindersToday,
                     records,
-                    queueData: queueRes.status === 'fulfilled' ? (queueRes.value?.data?.data || []) : [],
+                    queueData,
                     doctorAnalytics: doctorAnalyticsRes.status === 'fulfilled' ? (doctorAnalyticsRes.value?.data?.data || null) : null,
                 });
             } catch (_) {
@@ -282,9 +290,9 @@ export default function DashboardPage() {
                     icon: Users,
                 },
                 {
-                    label: 'Appointments Managed',
+                    label: 'Patient Bookings',
                     value: analytics.queuePrimary,
-                    hint: 'Live sessions in doctor queue',
+                    hint: 'All bookings across your appointments',
                     icon: Clock3,
                 },
                 {

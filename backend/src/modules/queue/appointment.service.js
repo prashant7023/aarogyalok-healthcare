@@ -4,10 +4,16 @@ const Doctor = require('../auth/doctor.model');
 const Patient = require('../auth/patient.model');
 const HealthRecord = require('../records/record.model');
 const Medication = require('../medication/models/medication.model');
+const medicationService = require('../medication/services/medication.service');
 const ReminderLog = require('../medication/models/reminderLog.model');
+const fs = require('fs/promises');
+const path = require('path');
+const pdfParse = require('pdf-parse');
+const { extractMedicalDataFromText, normalizeMedicineMap } = require('../../config/grok');
 const { AppError } = require('../../shared/middleware/error.middleware');
 
 const ACTIVE_QUEUE_BOOKING_STATUS = 'confirmed';
+const UPLOADS_DIR = path.join(__dirname, '../../../uploads');
 
 const escapeRegExp = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -22,6 +28,163 @@ const asDayRange = (value) => {
     const end = new Date(value);
     end.setHours(23, 59, 59, 999);
     return { $gte: start, $lte: end };
+};
+
+const summarizeText = (text = '') => {
+    const clean = String(text).replace(/\s+/g, ' ').trim();
+    if (!clean) return '';
+    const sentences = clean
+        .split(/(?<=[.!?])\s+/)
+        .filter(Boolean)
+        .slice(0, 4);
+    return sentences.join(' ');
+};
+
+const MEDICINE_STOP_WORDS = new Set([
+    'tab', 'tablet', 'tabs', 'cap', 'capsule', 'caps', 'syp', 'syrup', 'inj', 'injection',
+    'drop', 'drops', 'ointment', 'cream', 'gel', 'od', 'bd', 'tds', 'hs', 'sos', 'prn',
+    'daily', 'morning', 'night', 'noon', 'before', 'after', 'food', 'empty', 'stomach',
+    'mg', 'mcg', 'ml', 'gm', 'g', 'rx', 'dr', 'doctor', 'patient',
+]);
+
+const sanitizeMedicineName = (value = '') => {
+    let name = String(value || '').trim();
+    if (!name) return '';
+
+    name = name
+        .replace(/^[\d\s).:-]+/, '')
+        .replace(/[|,;]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    name = name
+        .replace(/^(?:tab(?:let)?s?|cap(?:sule)?s?|syp|syrup|inj(?:ection)?|drops?|ointment|cream|gel)\.?\s+/i, '')
+        .replace(/\b\d+(?:\.\d+)?\s?(?:mg|mcg|g|gm|ml)\b.*$/i, '')
+        .replace(/\s+(?:od|bd|tds|hs|sos|prn|daily|once\s+daily|twice\s+daily|thrice\s+daily).*$/i, '')
+        .trim();
+
+    if (!name) return '';
+
+    const lower = name.toLowerCase();
+    if (MEDICINE_STOP_WORDS.has(lower)) return '';
+    if (name.length < 3) return '';
+    if (!/[a-z]/i.test(name)) return '';
+    if (/^\d+$/.test(name)) return '';
+
+    return name;
+};
+
+const uniqueSanitizedMedicines = (items = []) => {
+    const seen = new Set();
+    const cleaned = [];
+
+    for (const raw of items) {
+        const name = sanitizeMedicineName(raw);
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        cleaned.push(name);
+    }
+
+    return cleaned;
+};
+
+const extractMedicineNamesFromText = (text = '') => {
+    const lines = String(text || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const candidates = [];
+    const medicineRegex = /\b([A-Z][A-Za-z0-9\-]{2,})\b(?:\s+\d{1,4}\s?(?:mg|mcg|g|ml))?/gi;
+
+    for (const line of lines) {
+        const hasRxHint = /\b(tab|tablet|cap|capsule|syrup|inj|injection|drop|ointment|od|bd|tds|hs|sos|daily)\b/i.test(line);
+        if (!hasRxHint) continue;
+        const matches = [...line.matchAll(medicineRegex)].map((m) => String(m[1] || '').trim()).filter(Boolean);
+        candidates.push(...matches);
+    }
+
+    return uniqueSanitizedMedicines(candidates);
+};
+
+const resolveDoctorDisplayName = async (doctorId, fallbackName = '') => {
+    const fallback = String(fallbackName || '').trim();
+    if (!doctorId) return fallback;
+
+    const doctor = await Doctor.findById(doctorId).select('name').lean();
+    if (doctor?.name) return String(doctor.name).trim();
+
+    const legacyDoctor = await Patient.findById(doctorId).select('name').lean();
+    if (legacyDoctor?.name) return String(legacyDoctor.name).trim();
+
+    return fallback;
+};
+
+const getPdfTextFromFileUrl = async (fileUrl = '') => {
+    const normalizedUrl = String(fileUrl || '').trim();
+    if (!normalizedUrl || !normalizedUrl.toLowerCase().endsWith('.pdf')) return '';
+
+    const fileName = path.basename(normalizedUrl);
+    if (!fileName) return '';
+
+    try {
+        const fileBuffer = await fs.readFile(path.join(UPLOADS_DIR, fileName));
+        const parsed = await pdfParse(fileBuffer);
+        return String(parsed?.text || '').trim();
+    } catch (_error) {
+        return '';
+    }
+};
+
+const buildDoctorPrescriptionInsights = async ({
+    prescription = '',
+    prescriptionFileUrl = '',
+    prescriptionOcrText = '',
+    medicines = [],
+}) => {
+    const normalizedMedicines = uniqueSanitizedMedicines(Array.isArray(medicines) ? medicines : []);
+
+    const providedOcrText = String(prescriptionOcrText || '').trim();
+    const ocrText = providedOcrText || await getPdfTextFromFileUrl(prescriptionFileUrl);
+    const sourceText = [String(prescription || '').trim(), ocrText].filter(Boolean).join('\n').trim();
+
+    if (!sourceText) {
+        return {
+            ocrText,
+            summary: '',
+            medicines: normalizedMedicines,
+        };
+    }
+
+    let aiSummary = '';
+    let aiMedicineNames = [];
+
+    try {
+        const aiExtraction = await extractMedicalDataFromText(sourceText);
+        aiSummary = String(aiExtraction?.summary || '').trim();
+        aiMedicineNames = normalizeMedicineMap(aiExtraction?.medicineMap)
+            .map((item) => String(item?.name || '').trim())
+            .filter(Boolean);
+    } catch (_error) {
+        aiSummary = '';
+        aiMedicineNames = [];
+    }
+
+    const localMedicineNames = extractMedicineNamesFromText(sourceText);
+
+    const mergedMedicines = uniqueSanitizedMedicines([
+        ...normalizedMedicines,
+        ...aiMedicineNames,
+        ...localMedicineNames,
+    ]);
+
+    return {
+        ocrText,
+        summary: aiSummary || summarizeText(sourceText),
+        medicines: mergedMedicines,
+    };
 };
 
 const getDoctorIdValue = (doctorRef) => {
@@ -292,7 +455,16 @@ const createAppointment = async (doctorId, appointmentData, creatorName) => {
 
 // Get doctor's appointments (for doctor dashboard)
 const getDoctorAppointments = async (doctorId, date) => {
-    const query = { doctorId };
+    const doctor = await Doctor.findById(doctorId).select('name').lean();
+    const fallbackDoctor = !doctor?.name ? await Patient.findById(doctorId).select('name').lean() : null;
+    const resolvedDoctorName = String(doctor?.name || fallbackDoctor?.name || '').trim();
+
+    const query = {
+        $or: [
+            { doctorId },
+            ...(resolvedDoctorName ? [{ doctorName: { $regex: `^${escapeRegExp(resolvedDoctorName)}$`, $options: 'i' } }] : []),
+        ],
+    };
     
     if (date) {
         query.appointmentDate = asDayRange(date);
@@ -445,6 +617,31 @@ const getDoctorAnalytics = async (doctorId, days = 14) => {
         totalCancelledInWindow: totals.cancelled,
         dailyBookings,
     };
+};
+
+// Get all bookings for doctor's appointments
+const getDoctorBookings = async (doctorId, date) => {
+    const doctor = await Doctor.findById(doctorId).select('name').lean();
+    const fallbackDoctor = !doctor?.name ? await Patient.findById(doctorId).select('name').lean() : null;
+    const resolvedDoctorName = String(doctor?.name || fallbackDoctor?.name || '').trim();
+
+    const appointmentQuery = {
+        $or: [
+            { doctorId },
+            ...(resolvedDoctorName ? [{ doctorName: { $regex: `^${escapeRegExp(resolvedDoctorName)}$`, $options: 'i' } }] : []),
+        ],
+    };
+    if (date) {
+        appointmentQuery.appointmentDate = asDayRange(date);
+    }
+
+    const appointmentIds = await Appointment.find(appointmentQuery).distinct('_id');
+    if (!appointmentIds.length) return [];
+
+    return Booking.find({ appointmentId: { $in: appointmentIds } })
+        .populate('appointmentId', 'title specialization appointmentDate doctorName')
+        .populate('patientId', 'name email phone')
+        .sort({ createdAt: -1, updatedAt: -1 });
 };
 
 const getDoctorPatientDetails = async (doctorId, patientId) => {
@@ -725,6 +922,34 @@ const getAppointmentDetails = async (appointmentId, doctorId) => {
     };
 };
 
+const createPatientMedicationsFromDoctorPrescription = async ({ booking, medicines = [], doctorId, doctorName }) => {
+    if (!booking?.patientId || !Array.isArray(medicines) || medicines.length === 0) return;
+
+    const normalizedMedicines = uniqueSanitizedMedicines(medicines);
+    if (!normalizedMedicines.length) return;
+
+    const startDate = new Date();
+
+    for (const medicineName of normalizedMedicines) {
+        const existingActive = await Medication.findOne({
+            userId: booking.patientId,
+            isActive: true,
+            medicineName,
+            prescribedByDoctorId: doctorId,
+        }).lean();
+        if (existingActive) continue;
+
+        await medicationService.createMedication(booking.patientId, {
+            medicineName,
+            dosage: '',
+            scheduleTimes: ['09:00'],
+            startDate,
+            prescribedByDoctorId: doctorId,
+            prescribedByDoctorName: doctorName || '',
+        });
+    }
+};
+
 // Mark patient attendance/completion
 const markPatient = async (bookingId, doctorId, markStatus, treatmentData = {}, io) => {
     const booking = await Booking.findById(bookingId).populate('appointmentId');
@@ -742,21 +967,51 @@ const markPatient = async (bookingId, doctorId, markStatus, treatmentData = {}, 
         const prescription = typeof treatmentData.prescription === 'string'
             ? treatmentData.prescription.trim()
             : '';
-        const medicines = Array.isArray(treatmentData.medicines)
+        const prescriptionFileUrl = typeof treatmentData.prescriptionFileUrl === 'string'
+            ? treatmentData.prescriptionFileUrl.trim()
+            : '';
+        const prescriptionOcrText = typeof treatmentData.prescriptionOcrText === 'string'
+            ? treatmentData.prescriptionOcrText.trim()
+            : '';
+        const manualMedicines = Array.isArray(treatmentData.medicines)
             ? treatmentData.medicines
                 .map((item) => String(item || '').trim())
                 .filter(Boolean)
             : [];
 
-        if (!prescription && medicines.length === 0) {
-            throw new AppError('Add prescription notes or at least one medicine before marking done', 400);
+        if (!prescription && !prescriptionFileUrl && manualMedicines.length === 0) {
+            throw new AppError('Upload prescription file, add notes, or add at least one medicine before completing consultation', 400);
         }
+
+        const prescriptionInsights = await buildDoctorPrescriptionInsights({
+            prescription,
+            prescriptionFileUrl,
+            prescriptionOcrText,
+            medicines: manualMedicines,
+        });
 
         booking.status = 'completed';
         booking.estimatedTurnTime = null;
         booking.estimatedWaitMinutes = null;
         booking.doctorPrescription = prescription;
-        booking.prescribedMedicines = medicines;
+        booking.doctorPrescriptionFileUrl = prescriptionFileUrl;
+        booking.doctorPrescriptionOcrText = prescriptionInsights.ocrText || '';
+        booking.doctorPrescriptionSummary = prescriptionInsights.summary || '';
+        booking.prescribedMedicines = prescriptionInsights.medicines;
+
+        const appointmentDoctorNameSnapshot = String(
+            booking?.appointmentId?.doctorName ||
+            booking?.appointmentId?.doctorId?.name ||
+            ''
+        ).trim();
+        const appointmentDoctorName = await resolveDoctorDisplayName(doctorId, appointmentDoctorNameSnapshot);
+
+        await createPatientMedicationsFromDoctorPrescription({
+            booking,
+            medicines: prescriptionInsights.medicines,
+            doctorId,
+            doctorName: appointmentDoctorName,
+        });
     }
 
     if (markStatus === 'absent') {
@@ -775,6 +1030,8 @@ const markPatient = async (bookingId, doctorId, markStatus, treatmentData = {}, 
             status: booking.status,
             markedBy: booking.markedBy,
             doctorPrescription: booking.doctorPrescription,
+            doctorPrescriptionFileUrl: booking.doctorPrescriptionFileUrl,
+            doctorPrescriptionSummary: booking.doctorPrescriptionSummary,
             prescribedMedicines: booking.prescribedMedicines,
         });
     }
@@ -1220,6 +1477,7 @@ module.exports = {
     createAppointment,
     getDoctorAppointments,
     getDoctorAnalytics,
+    getDoctorBookings,
     getDoctorConsultedPatients,
     getDoctorPatientDetails,
     getAppointmentDetails,

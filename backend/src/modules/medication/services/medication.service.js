@@ -20,8 +20,18 @@ const createMedication = async (userId, data) => {
     return med;
 };
 
-const getMedications = async (userId) =>
-    Medication.find({ userId, isActive: true }).sort({ createdAt: -1 });
+const getMedications = async (userId) => {
+    const meds = await Medication.find({ userId, isActive: true })
+        .populate('prescribedByDoctorId', 'name')
+        .sort({ createdAt: -1 });
+
+    return meds.map((med) => {
+        if (!med.prescribedByDoctorName && med?.prescribedByDoctorId?.name) {
+            med.prescribedByDoctorName = med.prescribedByDoctorId.name;
+        }
+        return med;
+    });
+};
 
 const getMedicationById = async (id, userId) =>
     Medication.findOne({ _id: id, userId });
