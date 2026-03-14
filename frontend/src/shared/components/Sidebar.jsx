@@ -3,20 +3,27 @@ import useAuthStore from '../../features/auth/authStore';
 import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 const NAV = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/symptom', icon: Activity, label: 'Symptom Checker', section: 'PATIENT', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/medication', icon: Pill, label: 'Medication', section: 'PATIENT', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/queue', icon: Users, label: 'Queue', section: 'CLINICAL', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['patient', 'doctor', 'admin'] },
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/symptom', icon: Activity, label: 'Symptom Checker', section: 'PATIENT', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/medication', icon: Pill, label: 'Medication', section: 'PATIENT', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/queue', icon: Users, label: 'Queue', section: 'CLINICAL', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, setSidebarWidth }) {
     const { user } = useAuthStore();
-    const role = user?.role || 'patient';
+    const role = String(user?.role || 'patient').toLowerCase();
 
     const handleNavClick = () => { if (isMobile) setIsOpen(false); };
 
-    const visibleNav = NAV.filter((n) => n.roles.includes(role));
+    const visibleNav = NAV
+        .filter((n) => n.roles.includes(role))
+        .map((n) => {
+            if (n.to === '/' && (role === 'patient' || role === 'user')) {
+                return { ...n, label: 'Personalized Report' };
+            }
+            return n;
+        });
     const sections = [...new Set(visibleNav.map((n) => n.section))];
 
     const handleDragStart = (e) => {
