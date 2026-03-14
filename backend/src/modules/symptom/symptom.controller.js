@@ -4,7 +4,8 @@ const { sendSuccess } = require('../../shared/utils/response');
 
 const analyzeSymptoms = asyncHandler(async (req, res) => {
     const { symptoms } = req.body;
-    const report = await symptomService.analyze(req.user._id, symptoms);
+    const io = req.app.get('io');
+    const report = await symptomService.analyze(req.user._id, symptoms, { io });
     sendSuccess(res, report, 'Symptoms analyzed', 201);
 });
 

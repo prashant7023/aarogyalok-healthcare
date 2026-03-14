@@ -10,6 +10,9 @@ const SAFE_DEFAULT_RESULT = {
       common_causes: ['Minor infection', 'Stress or fatigue', 'Sleep disturbance']
     }
   ],
+  disease_category: 'General Medicine',
+  can_home_care: true,
+  abnormal_case: false,
   severity: 'mild',
   recommended_specialist: 'General Physician',
   urgency_level: 'Visit within a week',
@@ -70,10 +73,25 @@ const normalizeResult = (value) => {
   const severity = typeof value.severity === 'string' ? value.severity.trim().toLowerCase() : '';
   const finalPossibleDiseases = possibleDiseases.length > 0 ? possibleDiseases : SAFE_DEFAULT_RESULT.possible_diseases;
   const conditionDetails = normalizeConditionDetails(value.condition_details, finalPossibleDiseases);
+  const diseaseCategory =
+    typeof value.disease_category === 'string' && value.disease_category.trim()
+      ? value.disease_category.trim()
+      : SAFE_DEFAULT_RESULT.disease_category;
+
+  const canHomeCare = typeof value.can_home_care === 'boolean'
+    ? value.can_home_care
+    : SAFE_DEFAULT_RESULT.can_home_care;
+
+  const abnormalCase = typeof value.abnormal_case === 'boolean'
+    ? value.abnormal_case
+    : SAFE_DEFAULT_RESULT.abnormal_case;
 
   return {
     possible_diseases: finalPossibleDiseases,
     condition_details: conditionDetails.length > 0 ? conditionDetails : SAFE_DEFAULT_RESULT.condition_details,
+    disease_category: diseaseCategory,
+    can_home_care: canHomeCare,
+    abnormal_case: abnormalCase,
     severity: ALLOWED_SEVERITY.has(severity) ? severity : SAFE_DEFAULT_RESULT.severity,
     recommended_specialist:
       typeof value.recommended_specialist === 'string' && value.recommended_specialist.trim()
@@ -117,7 +135,7 @@ const analyzeSymptoms = async (symptoms) => {
     'Return strict JSON only, no markdown.'
   ].join(' ');
 
-  const userPrompt = `A patient reports these symptoms:\n${symptomList.map((s) => `- ${s}`).join('\n')}\n\nReturn exactly this JSON shape:\n{\n  "possible_diseases": ["condition1", "condition2"],\n  "condition_details": [\n    {\n      "name": "condition1",\n      "explanation": "Simple patient-friendly explanation (1-2 lines)",\n      "common_causes": ["cause1", "cause2", "cause3"]\n    }\n  ],\n  "severity": "mild|moderate|severe",\n  "recommended_specialist": "Specialist name",\n  "urgency_level": "Emergency|Within 24 hours|Visit within a week",\n  "home_advice": "Short healthcare/medication-safe advice"\n}`;
+  const userPrompt = `A patient reports these symptoms:\n${symptomList.map((s) => `- ${s}`).join('\n')}\n\nReturn exactly this JSON shape:\n{\n  "possible_diseases": ["condition1", "condition2"],\n  "condition_details": [\n    {\n      "name": "condition1",\n      "explanation": "Simple patient-friendly explanation (1-2 lines)",\n      "common_causes": ["cause1", "cause2", "cause3"]\n    }\n  ],\n  "disease_category": "General Medicine|Respiratory|Cardiac|ENT|Dermatology|Ophthalmology|Orthopedic|Neurology|Gastroenterology",\n  "can_home_care": true,\n  "abnormal_case": false,\n  "severity": "mild|moderate|severe",\n  "recommended_specialist": "Specialist name",\n  "urgency_level": "Emergency|Within 24 hours|Visit within a week",\n  "home_advice": "Short healthcare/medication-safe advice"\n}`;
 
   const response = await fetch(GROQ_API_URL, {
     method: 'POST',

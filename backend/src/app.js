@@ -9,6 +9,7 @@ const medicationModule = require('./modules/medication');
 const queueModule = require('./modules/queue');
 const recordModule = require('./modules/records');
 const { errorHandler } = require('./shared/middleware/error.middleware');
+const { requestLogger } = require('./shared/middleware/request-logger.middleware');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(cors());
 // Allow all origins
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(requestLogger);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/health', (_req, res) => {

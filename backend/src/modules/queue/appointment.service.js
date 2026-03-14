@@ -294,6 +294,10 @@ const addOfflinePatientToQueue = async (appointmentId, doctorId, data, io) => {
 // Get all appointments (for patient to browse)
 const getAllAppointments = async (filters = {}) => {
     const query = { status: 'active' };
+
+    if (filters.doctorId) {
+        query.doctorId = filters.doctorId;
+    }
     
     // Filter by specialization
     if (filters.specialization) {
