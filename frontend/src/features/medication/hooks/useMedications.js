@@ -84,6 +84,30 @@ export function useMedications() {
         }
     };
 
+    // --- Update medication schedule times ---
+    const updateMedicationSchedule = async (id, scheduleTimes) => {
+        setLoading(true);
+        setError('');
+        try {
+            const payload = {
+                scheduleTimes: scheduleTimes.map((time) => String(time).trim()).filter(Boolean),
+            };
+
+            const r = await api.put(`/medication/${id}`, payload);
+            const updated = r.data.data;
+
+            setMeds((prev) => prev.map((m) => (m._id === id ? updated : m)));
+            await fetchTodayReminders();
+            await fetchAdherence();
+            return true;
+        } catch (e) {
+            setError(e.response?.data?.message || 'Failed to update schedule');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // --- Respond to a reminder (taken or skipped) ---
     const respondToReminder = async (reminderId, status) => {
         try {
@@ -116,7 +140,8 @@ export function useMedications() {
 
     return {
         meds, todayReminders, adherence, loading, error,
-        addMedication, deleteMedication, respondToReminder, addIncomingReminder,
+        addMedication, deleteMedication, updateMedicationSchedule,
+        respondToReminder, addIncomingReminder,
         refetchReminders: fetchTodayReminders,
     };
 }
