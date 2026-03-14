@@ -1,0 +1,48 @@
+                ┌─────────────────────┐
+                │   Symptom Check     │
+                │      (using AI)     │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │ Are symptoms mild?  │
+                │ Home care possible? │
+                └───────┬───────┬─────┘
+                        │Yes    │No
+                        ▼       ▼
+              ┌─────────────┐   ┌────────────────────────┐
+              │ Show Home   │   │ Disease Category       │
+              │ Care Advice │   │ + Severity Detection   │
+              └─────────────┘   └───────────┬────────────┘
+                                            │
+                                            ▼
+                               ┌─────────────────────────┐
+                               │ Recommend Doctor based  │
+                               │ on Disease Type         │
+                               └───────────┬─────────────┘
+                                           │
+                                           ▼
+                               ┌─────────────────────────┐
+                               │ Find Nearby Doctors /   │
+                               │ Hospitals               │
+                               └───────────┬─────────────┘
+                                           │
+                                           ▼
+                               ┌─────────────────────────┐
+                               │ Queue Management System │
+                               │ Generate Token &        │
+                               │ Estimated Time          │
+                               └───────────┬─────────────┘
+                                           │
+                                           ▼
+                           ┌────────────────────────────────┐
+                           │ If unusual / abnormal case     │
+                           │ detected                       │
+                           └───────────┬────────────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────────┐
+                        │ Automatic Doctor Notification    │
+                        │ Send report to Healthcare        │
+                        │ Partner / Specialist             │
+                        └───────────┬──────────────────────┘
