@@ -168,107 +168,96 @@ export default function PatientDashboard() {
                                 <Calendar size={14} color="#94a3b8" />
                                 {date}
                             </h2>
-                            <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                            <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e1e3e5', overflow: 'hidden' }}>
                                 {apts.map((apt, idx) => {
                                     const isBookable = apt.status === 'active';
+                                    const aptDate = new Date(apt.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
                                     return (
                                         <div
                                             key={apt._id}
                                             style={{
-                                                display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
-                                                padding: '1rem 1.25rem',
-                                                borderBottom: idx < apts.length - 1 ? '1px solid #f1f5f9' : 'none',
-                                                transition: 'background .15s',
-                                                opacity: 1
+                                                display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+                                                padding: '0.7rem 1rem',
+                                                borderBottom: idx < apts.length - 1 ? '1px solid #f1f2f3' : 'none',
+                                                transition: 'background .12s',
                                             }}
-                                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                                            onMouseEnter={(e) => (e.currentTarget.style.background = '#fafafa')}
                                             onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                         >
+                                            {/* Avatar */}
                                             <div style={{
-                                                width: 44,
-                                                height: 44,
+                                                width: 36,
+                                                height: 36,
                                                 borderRadius: '50%',
                                                 background: '#ebf4ff',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
                                                 fontWeight: 700,
-                                                fontSize: '1.1rem',
+                                                fontSize: '0.95rem',
                                                 color: '#005bd3',
                                                 flexShrink: 0
                                             }}>
                                                 {apt.doctorId?.name?.charAt(0) || apt.doctorName?.charAt(0) || 'D'}
                                             </div>
 
-                                            <div style={{ flex: 1, minWidth: 200 }}>
-                                                <div style={{ marginBottom: '0.35rem' }}>
-                                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.15rem' }}>
-                                                        {apt.title}
-                                                    </div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                        <span style={{ background: '#dbeafe', color: '#1e40af', padding: '0.16rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
-                                                            Dr. {apt.doctorId?.name || apt.doctorName || 'Unknown'}
-                                                        </span>
-                                                        <span>• {apt.specialization}</span>
-                                                    </div>
+                                            {/* Content */}
+                                            <div style={{ flex: 1, minWidth: 180 }}>
+                                                {/* Title + Doctor */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{apt.title}</span>
+                                                    <span style={{ background: '#ebf4ff', color: '#005bd3', padding: '0.1rem 0.45rem', borderRadius: '999px', fontWeight: 700, fontSize: '0.72rem' }}>
+                                                        Dr. {apt.doctorId?.name || apt.doctorName || 'Unknown'}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#8a8a8a' }}>{apt.specialization}</span>
                                                 </div>
-
-                                                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.75rem', color: '#64748b' }}>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <DollarSign size={12} color="#94a3b8" />
+                                                {/* Meta row */}
+                                                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', fontSize: '0.72rem', color: '#8a8a8a', alignItems: 'center' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#005bd3', fontWeight: 600 }}>
+                                                        <Calendar size={11} color="#005bd3" />
+                                                        {aptDate}
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                        <DollarSign size={11} color="#94a3b8" />
                                                         ₹{apt.price}
                                                     </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#10b981' }}>
-                                                        <Clock size={12} color="#10b981" />
-                                                        {apt.consultationDurationMinutes} min per patient
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#008060', fontWeight: 600 }}>
+                                                        <Clock size={11} color="#008060" />
+                                                        {apt.consultationDurationMinutes} min
                                                     </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#2563eb' }}>
-                                                        <Users size={12} color="#2563eb" />
-                                                        Current token: {apt.currentTokenNumber || '-'}
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600, color: '#005bd3' }}>
+                                                        <Users size={11} color="#005bd3" />
+                                                        Token #{apt.currentTokenNumber || '-'}
                                                     </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#64748b' }}>
-                                                        <Users size={12} color="#94a3b8" />
-                                                        Issued tokens: {apt.totalTokensIssued || 0}
-                                                    </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <MapPin size={12} color="#94a3b8" />
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                        <MapPin size={11} color="#94a3b8" />
                                                         {apt.address}
                                                     </span>
                                                 </div>
                                             </div>
 
+                                            {/* Book button */}
                                             <button
                                                 onClick={() => handleBookSlot(apt)}
                                                 disabled={!isBookable}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '5px',
-                                                    padding: '0.5rem 1rem',
+                                                    gap: '4px',
+                                                    padding: '0.38rem 0.75rem',
                                                     background: isBookable ? '#005bd3' : '#f1f2f3',
                                                     color: isBookable ? '#fff' : '#8a8a8a',
-                                                    border: '1px solid transparent',
+                                                    border: 'none',
                                                     borderRadius: '6px',
-                                                    fontSize: '0.8rem',
+                                                    fontSize: '0.75rem',
                                                     fontWeight: 600,
                                                     cursor: isBookable ? 'pointer' : 'not-allowed',
                                                     flexShrink: 0,
-                                                    transition: 'all 0.15s',
-                                                    opacity: isBookable ? 1 : 0.8
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    if (isBookable) {
-                                                        e.target.style.background = '#0047a5';
-                                                    }
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    if (isBookable) {
-                                                        e.target.style.background = '#005bd3';
-                                                    }
+                                                    whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                <Users size={13} />
+                                                <Users size={12} />
                                                 {isBookable ? 'Book Token' : 'Unavailable'}
                                             </button>
                                         </div>

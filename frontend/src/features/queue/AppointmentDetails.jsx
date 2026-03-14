@@ -159,9 +159,29 @@ export default function AppointmentDetails() {
             </div>
 
             <div className="card" style={{ padding: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '1rem', color: '#0f172a' }}>
-                    Queue ({activeQueue.length} active / {bookings.length} total)
-                </h2>
+                {/* Queue stats header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem', padding: '0.75rem 1rem', background: '#f8fafc', border: '1px solid #e1e3e5', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                            <span style={{ fontSize: '0.72rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Active</span>
+                            <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>{activeQueue.length}</span>
+                        </div>
+                        <div style={{ width: 1, height: 28, background: '#e1e3e5' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#005bd3' }} />
+                            <span style={{ fontSize: '0.72rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total</span>
+                            <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#303030', lineHeight: 1 }}>{bookings.length}</span>
+                        </div>
+                        <div style={{ width: 1, height: 28, background: '#e1e3e5' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#008060' }} />
+                            <span style={{ fontSize: '0.72rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Done</span>
+                            <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#008060', lineHeight: 1 }}>{bookings.filter(b => b.status === 'completed').length}</span>
+                        </div>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#005bd3', background: '#ebf4ff', padding: '0.3rem 0.75rem', borderRadius: '6px' }}>Live Queue</span>
+                </div>
 
                 {bookings.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
@@ -169,103 +189,112 @@ export default function AppointmentDetails() {
                         <p>No patients in queue yet</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {bookings
                             .sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0))
-                            .map((booking) => (
-                                <div
-                                    key={booking._id}
-                                    style={{
-                                        border: '1px solid #e2e8f0',
-                                        borderRadius: '8px',
-                                        padding: '0.9rem',
-                                        background: booking.status === 'completed' ? '#f0fdf4' : booking.status === 'cancelled' ? '#f8fafc' : '#fff',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: '0.75rem',
-                                        flexWrap: 'wrap',
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: '1 1 320px' }}>
-                                        <div style={{
-                                            width: '40px',
-                                            height: '40px',
-                                            borderRadius: '10px',
-                                            background: '#dbeafe',
-                                            color: '#1e40af',
+                            .map((booking) => {
+                                const isDone = booking.status === 'completed';
+                                const isCancelled = booking.status === 'cancelled';
+                                const isWaiting = booking.status === 'confirmed';
+                                const accentColor = isDone ? '#008060' : isCancelled ? '#dc2626' : '#f59e0b';
+                                const statusBg = isDone ? '#f0fdf4' : isCancelled ? '#fff1f0' : '#fffbeb';
+                                const statusText = isDone ? '#008060' : isCancelled ? '#dc2626' : '#b45309';
+                                return (
+                                    <div
+                                        key={booking._id}
+                                        style={{
+                                            borderRadius: '8px',
+                                            border: '1px solid #e1e3e5',
+                                            borderLeft: `4px solid ${accentColor}`,
+                                            background: isDone ? '#fafffe' : isCancelled ? '#fffafa' : '#fff',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontWeight: 800,
-                                            fontSize: '0.95rem',
+                                            gap: '0.9rem',
+                                            padding: '0.7rem 1rem',
+                                            flexWrap: 'wrap',
+                                        }}
+                                    >
+                                        {/* Token badge */}
+                                        <div style={{
+                                            minWidth: 42, textAlign: 'center',
+                                            background: '#ebf4ff', color: '#005bd3',
+                                            borderRadius: '8px', padding: '0.35rem 0.3rem',
+                                            fontWeight: 800, fontSize: '1rem', lineHeight: 1.15,
                                             flexShrink: 0,
                                         }}>
-                                            #{booking.tokenNumber}
+                                            <div style={{ fontSize: '0.6rem', fontWeight: 600, color: '#5b8dee', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Token</div>
+                                            {booking.tokenNumber}
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.2rem' }}>{booking.patientName}</h3>
-                                            <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.2rem' }}>
-                                                {booking.patientAge}y • {booking.patientGender} {booking.isOfflineEntry ? '• Walk-in' : ''}
+
+                                        {/* Patient info */}
+                                        <div style={{ flex: 1, minWidth: 130 }}>
+                                            <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#303030', marginBottom: '0.15rem' }}>
+                                                {booking.patientName}
                                             </div>
-                                            {booking.patientPhone && (
-                                                <div style={{ fontSize: '0.78rem', color: '#1e40af', marginBottom: '0.2rem', fontWeight: 600 }}>
-                                                    Mobile: {booking.patientPhone}
-                                                </div>
+                                            <div style={{ fontSize: '0.75rem', color: '#8a8a8a', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                <span>{booking.patientAge}y</span>
+                                                <span style={{ color: '#d1d5db' }}>•</span>
+                                                <span>{booking.patientGender}</span>
+                                                {booking.isOfflineEntry && (
+                                                    <>
+                                                        <span style={{ color: '#d1d5db' }}>•</span>
+                                                        <span style={{ background: '#f1f2f3', color: '#636363', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600, fontSize: '0.68rem' }}>Walk-in</span>
+                                                    </>
+                                                )}
+                                                {booking.patientPhone && (
+                                                    <>
+                                                        <span style={{ color: '#d1d5db' }}>•</span>
+                                                        <span style={{ color: '#005bd3', fontWeight: 700 }}>📱 {booking.patientPhone}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Meta chips */}
+                                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', flexShrink: 0 }}>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.22rem 0.55rem', borderRadius: '6px', background: '#ebf4ff', color: '#005bd3', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                                <Hash size={10} /> {appointment.currentTokenNumber || '-'}
+                                            </span>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.22rem 0.55rem', borderRadius: '6px', background: '#f0fdfa', color: '#0f766e', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                                <Clock size={10} /> {formatEta(booking.estimatedTurnTime)}
+                                            </span>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.22rem 0.55rem', borderRadius: '6px', background: '#f8fafc', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                                <Calendar size={10} /> {booking.estimatedWaitMinutes ?? 0} min
+                                            </span>
+                                        </div>
+
+                                        {/* Status + actions */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                                            <span style={{
+                                                padding: '0.28rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
+                                                background: statusBg, color: statusText,
+                                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                            }}>
+                                                {isDone && <CheckCircle size={12} />}
+                                                {isCancelled && <XCircle size={12} />}
+                                                {isWaiting && <AlertCircle size={12} />}
+                                                {isDone ? 'Done' : isCancelled ? 'Cancelled' : 'Waiting'}
+                                            </span>
+                                            {isWaiting && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleMark(booking._id, 'absent')}
+                                                        style={{ fontSize: '0.75rem', padding: '0.28rem 0.6rem', background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleMark(booking._id, 'completed')}
+                                                        style={{ fontSize: '0.75rem', padding: '0.28rem 0.65rem', background: '#008060', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        Done ✓
+                                                    </button>
+                                                </>
                                             )}
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                <span style={{ padding: '0.2rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, background: '#dbeafe', color: '#1e40af', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Hash size={11} /> Current: {appointment.currentTokenNumber || '-'}
-                                                </span>
-                                                <span style={{ padding: '0.2rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, background: '#ecfeff', color: '#0f766e', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Clock size={11} /> ETA: {formatEta(booking.estimatedTurnTime)}
-                                                </span>
-                                                <span style={{ padding: '0.2rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, background: '#f8fafc', color: '#334155', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Calendar size={11} /> Wait: {booking.estimatedWaitMinutes ?? 0} min
-                                                </span>
-                                            </div>
                                         </div>
                                     </div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', alignItems: 'flex-end' }}>
-                                        <span
-                                            style={{
-                                                padding: '0.35rem 0.65rem',
-                                                borderRadius: '6px',
-                                                fontSize: '0.8rem',
-                                                fontWeight: 700,
-                                                background: booking.status === 'completed' ? '#d1fae5' : booking.status === 'cancelled' ? '#fee2e2' : '#fef3c7',
-                                                color: booking.status === 'completed' ? '#059669' : booking.status === 'cancelled' ? '#dc2626' : '#d97706',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                            }}
-                                        >
-                                            {booking.status === 'completed' && <CheckCircle size={13} />}
-                                            {booking.status === 'cancelled' && <XCircle size={13} />}
-                                            {booking.status === 'confirmed' && <AlertCircle size={13} />}
-                                            {booking.status === 'confirmed' ? 'Waiting' : booking.status === 'completed' ? 'Done' : 'Cancelled'}
-                                        </span>
-
-                                        {booking.status === 'confirmed' && (
-                                            <div style={{ display: 'flex', gap: '0.45rem' }}>
-                                                <button
-                                                    onClick={() => handleMark(booking._id, 'absent')}
-                                                    style={{ fontSize: '0.78rem', padding: '0.38rem 0.6rem', background: 'white', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
-                                                >
-                                                    Mark Absent
-                                                </button>
-                                                <button
-                                                    onClick={() => handleMark(booking._id, 'completed')}
-                                                    style={{ fontSize: '0.78rem', padding: '0.38rem 0.6rem', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
-                                                >
-                                                    Done
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                     </div>
                 )}
             </div>
