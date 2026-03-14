@@ -36,6 +36,11 @@ function MedCard({ med, onDelete, onEdit }) {
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-mid)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={14} color="var(--text-light)" /> {med.scheduleTimes?.join(', ')}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Activity size={14} color="var(--text-light)" /> {med.dosage}</span>
+                    {med.prescribedByDoctorName && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Pill size={14} color="var(--text-light)" /> Added by Dr. {med.prescribedByDoctorName}
+                        </span>
+                    )}
                 </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>

@@ -64,7 +64,7 @@ export default function MyAppointments() {
             );
         });
 
-        socket.on('booking-status-updated', ({ appointmentId, bookingId, tokenNumber, status, markedBy, doctorPrescription, prescribedMedicines }) => {
+        socket.on('booking-status-updated', ({ appointmentId, bookingId, tokenNumber, status, markedBy, doctorPrescription, doctorPrescriptionFileUrl, doctorPrescriptionSummary, prescribedMedicines }) => {
             setBookings((prev) =>
                 prev.map((booking) => {
                     if (booking.appointmentId?._id !== appointmentId) return booking;
@@ -77,6 +77,8 @@ export default function MyAppointments() {
                         status: status || booking.status,
                         markedBy: markedBy || booking.markedBy,
                         doctorPrescription: typeof doctorPrescription === 'string' ? doctorPrescription : booking.doctorPrescription,
+                        doctorPrescriptionFileUrl: typeof doctorPrescriptionFileUrl === 'string' ? doctorPrescriptionFileUrl : booking.doctorPrescriptionFileUrl,
+                        doctorPrescriptionSummary: typeof doctorPrescriptionSummary === 'string' ? doctorPrescriptionSummary : booking.doctorPrescriptionSummary,
                         prescribedMedicines: Array.isArray(prescribedMedicines) ? prescribedMedicines : booking.prescribedMedicines,
                         estimatedTurnTime: status === 'completed' || status === 'cancelled' ? null : booking.estimatedTurnTime,
                         estimatedWaitMinutes: status === 'completed' || status === 'cancelled' ? null : booking.estimatedWaitMinutes,
@@ -321,15 +323,34 @@ export default function MyAppointments() {
                                         </div>
                                     )}
 
-                                    {isCompleted && (booking.doctorPrescription || (booking.prescribedMedicines?.length || 0) > 0) && (
+                                    {isCompleted && (booking.doctorPrescription || booking.doctorPrescriptionSummary || booking.doctorPrescriptionFileUrl || (booking.prescribedMedicines?.length || 0) > 0) && (
                                         <div style={{ marginTop: '0.7rem', border: '1px solid #d1fae5', background: '#f0fdf4', borderRadius: '8px', padding: '0.55rem 0.65rem' }}>
                                             <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#047857', marginBottom: '0.3rem' }}>
                                                 Doctor Prescription
                                             </div>
 
+                                            {booking.doctorPrescriptionSummary && (
+                                                <div style={{ fontSize: '0.78rem', color: '#065f46', lineHeight: 1.5, marginBottom: (booking.doctorPrescription || booking.doctorPrescriptionFileUrl || booking.prescribedMedicines?.length) ? '0.45rem' : 0 }}>
+                                                    <strong>Summary:</strong> {booking.doctorPrescriptionSummary}
+                                                </div>
+                                            )}
+
                                             {booking.doctorPrescription && (
                                                 <div style={{ fontSize: '0.78rem', color: '#14532d', lineHeight: 1.5, marginBottom: booking.prescribedMedicines?.length ? '0.45rem' : 0 }}>
                                                     {booking.doctorPrescription}
+                                                </div>
+                                            )}
+
+                                            {booking.doctorPrescriptionFileUrl && (
+                                                <div style={{ marginBottom: booking.prescribedMedicines?.length ? '0.45rem' : 0 }}>
+                                                    <a
+                                                        href={booking.doctorPrescriptionFileUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0369a1', textDecoration: 'underline' }}
+                                                    >
+                                                        View uploaded prescription file
+                                                    </a>
                                                 </div>
                                             )}
 

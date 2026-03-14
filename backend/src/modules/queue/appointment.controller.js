@@ -24,6 +24,12 @@ const getDoctorAppointments = asyncHandler(async (req, res) => {
     sendSuccess(res, appointments, 'Appointments fetched successfully');
 });
 
+const getDoctorBookings = asyncHandler(async (req, res) => {
+    const date = req.query.date;
+    const bookings = await appointmentService.getDoctorBookings(req.user._id, date);
+    sendSuccess(res, bookings, 'Doctor bookings fetched successfully');
+});
+
 const getDoctorConsultedPatients = asyncHandler(async (req, res) => {
     const data = await appointmentService.getDoctorConsultedPatients(req.user._id, {
         search: req.query.search,
@@ -47,7 +53,28 @@ const getAppointmentDetails = asyncHandler(async (req, res) => {
 
 // Mark patient (present/absent/completed)
 const markPatient = asyncHandler(async (req, res) => {
-    const { markStatus, prescription, medicines } = req.body;
+    const { markStatus, prescription } = req.body;
+    let medicines = req.body.medicines;
+
+    if (typeof medicines === 'string') {
+        const trimmed = medicines.trim();
+        if (!trimmed) {
+            medicines = [];
+        } else {
+            try {
+                const parsed = JSON.parse(trimmed);
+                medicines = Array.isArray(parsed) ? parsed : [trimmed];
+            } catch (_error) {
+                medicines = [trimmed];
+            }
+        }
+    }
+
+    if (!Array.isArray(medicines)) {
+        medicines = medicines ? [String(medicines)] : [];
+    }
+
+    const prescriptionFileUrl = req.file ? `/uploads/${req.file.filename}` : '';
     const io = req.app.get('io');
     const booking = await appointmentService.markPatient(
         req.params.bookingId,
@@ -56,6 +83,7 @@ const markPatient = asyncHandler(async (req, res) => {
         {
             prescription,
             medicines,
+            prescriptionFileUrl,
         },
         io
     );
@@ -178,6 +206,7 @@ module.exports = {
     // Doctor
     createAppointment,
     getDoctorAppointments,
+    getDoctorBookings,
     getDoctorConsultedPatients,
     getDoctorPatientDetails,
     getAppointmentDetails,

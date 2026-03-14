@@ -4,6 +4,7 @@ const medicationSchema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
         prescribedByDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor', default: null },
+        prescribedByDoctorName: { type: String, default: '' },
         medicineName: { type: String, required: [true, 'Medicine name is required'], trim: true },
         dosage: { type: String, default: '' },
         scheduleTimes: [{ type: String }],

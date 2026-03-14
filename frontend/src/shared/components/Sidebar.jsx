@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import useAuthStore from '../../features/auth/authStore';
-import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X, Settings, CreditCard } from 'lucide-react';
+import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X, Settings, CreditCard, TableProperties } from 'lucide-react';
 
 const NAV = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },

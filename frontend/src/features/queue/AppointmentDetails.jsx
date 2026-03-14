@@ -25,6 +25,7 @@ export default function AppointmentDetails() {
     const [submittingOffline, setSubmittingOffline] = useState(false);
     const [doneModalBooking, setDoneModalBooking] = useState(null);
     const [prescription, setPrescription] = useState('');
+    const [prescriptionFile, setPrescriptionFile] = useState(null);
     const [medicineInput, setMedicineInput] = useState('');
     const [medicines, setMedicines] = useState([]);
     const [submittingDone, setSubmittingDone] = useState(false);
@@ -95,6 +96,7 @@ export default function AppointmentDetails() {
         setDoneModalBooking(booking);
         setPrescription(booking?.doctorPrescription || '');
         setMedicines(Array.isArray(booking?.prescribedMedicines) ? booking.prescribedMedicines : []);
+        setPrescriptionFile(null);
         setMedicineInput('');
     };
 
@@ -102,6 +104,7 @@ export default function AppointmentDetails() {
         if (submittingDone) return;
         setDoneModalBooking(null);
         setPrescription('');
+        setPrescriptionFile(null);
         setMedicineInput('');
         setMedicines([]);
     };
@@ -120,22 +123,26 @@ export default function AppointmentDetails() {
     const handleCompleteWithPrescription = async () => {
         if (!doneModalBooking?._id) return;
 
-        if (!prescription.trim() && medicines.length === 0) {
-            alert('Please add prescription notes or at least one medicine');
+        if (!prescription.trim() && !prescriptionFile && medicines.length === 0) {
+            alert('Please upload prescription file, add notes, or add at least one medicine');
             return;
         }
 
         setSubmittingDone(true);
         try {
-            await api.patch(`/queue/doctor/bookings/${doneModalBooking._id}/mark`, {
-                markStatus: 'completed',
-                prescription,
-                medicines,
-            });
+            const formData = new FormData();
+            formData.append('markStatus', 'completed');
+            formData.append('prescription', prescription);
+            formData.append('medicines', JSON.stringify(medicines));
+            if (prescriptionFile) {
+                formData.append('prescriptionFile', prescriptionFile);
+            }
+
+            await api.patch(`/queue/doctor/bookings/${doneModalBooking._id}/mark`, formData);
             closeDoneModal();
             fetchDetails();
         } catch (e) {
-            alert(e.response?.data?.message || 'Failed to complete consultation');
+            alert(e.response?.data?.message || 'Failed to upload prescription and complete consultation');
         } finally {
             setSubmittingDone(false);
         }
@@ -231,7 +238,7 @@ export default function AppointmentDetails() {
                         <div style={{ width: 1, height: 28, background: '#e1e3e5' }} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#008060' }} />
-                            <span style={{ fontSize: '0.72rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Done</span>
+                            <span style={{ fontSize: '0.72rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Prescription Uploaded</span>
                             <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#008060', lineHeight: 1 }}>{bookings.filter(b => b.status === 'completed').length}</span>
                         </div>
                     </div>
@@ -342,7 +349,7 @@ export default function AppointmentDetails() {
                                                         onClick={() => openDoneModal(booking)}
                                                         style={{ fontSize: '0.75rem', padding: '0.28rem 0.65rem', background: '#008060', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
                                                     >
-                                                        Done ✓
+                                                        Upload Prescription
                                                     </button>
                                                 </>
                                             )}
@@ -369,8 +376,28 @@ export default function AppointmentDetails() {
                 >
                     <div style={{ width: 'min(620px, 100%)', background: '#fff', borderRadius: '10px', border: '1px solid #e1e3e5', padding: '1rem' }}>
                         <h3 style={{ margin: 0, marginBottom: '0.7rem', fontSize: '1rem', color: '#0f172a' }}>
-                            Complete Consultation — {doneModalBooking.patientName}
+                            Upload Prescription & Add Medicine — {doneModalBooking.patientName}
                         </h3>
+
+                        <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>
+                                Upload Prescription File (PDF / JPG / PNG)
+                            </label>
+                            <input
+                                className="input"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={(e) => setPrescriptionFile(e.target.files?.[0] || null)}
+                                style={{ width: '100%' }}
+                            />
+                            {(prescriptionFile || doneModalBooking?.doctorPrescriptionFileUrl) && (
+                                <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: '#475569' }}>
+                                    {prescriptionFile
+                                        ? `Selected: ${prescriptionFile.name}`
+                                        : `Existing file: ${doneModalBooking?.doctorPrescriptionFileUrl}`}
+                                </div>
+                            )}
+                        </div>
 
                         <div style={{ marginBottom: '0.75rem' }}>
                             <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>
@@ -448,7 +475,7 @@ export default function AppointmentDetails() {
                                 disabled={submittingDone}
                                 style={{ border: 'none', background: '#008060', color: '#fff', borderRadius: '6px', padding: '0.45rem 0.8rem', fontWeight: 700, cursor: submittingDone ? 'not-allowed' : 'pointer' }}
                             >
-                                {submittingDone ? 'Saving...' : 'Done'}
+                                {submittingDone ? 'Saving...' : 'Save Prescription'}
                             </button>
                         </div>
                     </div>

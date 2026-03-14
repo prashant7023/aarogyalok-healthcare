@@ -92,6 +92,21 @@ const bookingSchema = new mongoose.Schema(
             trim: true,
             default: ''
         },
+        doctorPrescriptionFileUrl: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        doctorPrescriptionOcrText: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        doctorPrescriptionSummary: {
+            type: String,
+            trim: true,
+            default: ''
+        },
         prescribedMedicines: {
             type: [String],
             default: []
