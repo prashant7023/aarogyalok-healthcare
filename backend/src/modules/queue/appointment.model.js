@@ -7,6 +7,11 @@ const appointmentSchema = new mongoose.Schema(
             ref: 'Doctor', 
             required: true 
         },
+        doctorName: {
+            type: String,
+            trim: true,
+            default: null,
+        },
         title: { 
             type: String, 
             required: true,
@@ -21,10 +26,16 @@ const appointmentSchema = new mongoose.Schema(
             type: Date, 
             required: true 
         },
-        timeSlots: [{
-            time: { type: String, required: true }, // e.g., "10:00 AM"
-            isBooked: { type: Boolean, default: false }
-        }],
+        scheduleStartTime: {
+            type: String,
+            default: '09:00'
+        },
+        consultationDurationMinutes: {
+            type: Number,
+            required: true,
+            min: 1,
+            max: 180
+        },
         price: { 
             type: Number, 
             required: true,
@@ -40,8 +51,8 @@ const appointmentSchema = new mongoose.Schema(
             enum: ['active', 'completed', 'cancelled'], 
             default: 'active' 
         },
-        totalSlots: { type: Number, default: 0 },
-        bookedSlots: { type: Number, default: 0 }
+        totalTokensIssued: { type: Number, default: 0 },
+        currentTokenNumber: { type: Number, default: null }
     },
     { timestamps: true }
 );

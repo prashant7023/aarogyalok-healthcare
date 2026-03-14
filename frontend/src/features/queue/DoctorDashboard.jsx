@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Plus, Users, Clock, DollarSign, MapPin, Eye } from 'lucide-react';
+import { Calendar, Plus, Users, Clock, DollarSign, MapPin, Eye, Hash } from 'lucide-react';
 import api from '../../shared/utils/api';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
@@ -136,11 +136,15 @@ export default function DoctorDashboard() {
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                 <Clock size={16} color="var(--text-light)" />
-                                                <span>{apt.totalSlots} slots</span>
+                                                <span>{apt.consultationDurationMinutes} min per patient</span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <Hash size={16} color="var(--text-light)" />
+                                                <span>Issued tokens: {apt.totalTokensIssued || 0}</span>
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                 <Users size={16} color="var(--text-light)" />
-                                                <span>{apt.bookedSlots} / {apt.totalSlots} booked</span>
+                                                <span>Current token: {apt.currentTokenNumber || '-'}</span>
                                             </div>
                                         </div>
                                     </div>

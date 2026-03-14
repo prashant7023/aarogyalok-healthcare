@@ -45,7 +45,7 @@ export default function PatientDashboard() {
     const stats = {
         total: appointments.length,
         specializations: [...new Set(appointments.map(a => a.specialization))].length,
-        availableSlots: appointments.reduce((sum, apt) => sum + (apt.totalSlots - apt.bookedSlots), 0)
+        totalIssuedTokens: appointments.reduce((sum, apt) => sum + (apt.totalTokensIssued || 0), 0)
     };
 
     return (
@@ -83,8 +83,8 @@ export default function PatientDashboard() {
                         <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#005bd3', lineHeight: 1 }}>{stats.specializations}</div>
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.65rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '.05em' }}>Available Slots</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#008060', lineHeight: 1 }}>{stats.availableSlots}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '.05em' }}>Issued Tokens</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#008060', lineHeight: 1 }}>{stats.totalIssuedTokens}</div>
                     </div>
                 </div>
                 <div style={{ padding: '0.5rem 0.85rem', background: '#ebf4ff', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -170,23 +170,21 @@ export default function PatientDashboard() {
                             </h2>
                             <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                                 {apts.map((apt, idx) => {
-                                    const availableCount = apt.totalSlots - apt.bookedSlots;
-                                    const isFullyBooked = availableCount <= 0;
-                                    
+                                    const isBookable = apt.status === 'active';
+
                                     return (
-                                        <div 
+                                        <div
                                             key={apt._id}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
                                                 padding: '1rem 1.25rem',
                                                 borderBottom: idx < apts.length - 1 ? '1px solid #f1f5f9' : 'none',
                                                 transition: 'background .15s',
-                                                opacity: isFullyBooked ? 0.6 : 1
+                                                opacity: 1
                                             }}
-                                            onMouseEnter={(e) => !isFullyBooked && (e.currentTarget.style.background = '#f8fafc')}
+                                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
                                             onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                         >
-                                            {/* Doctor avatar */}
                                             <div style={{
                                                 width: 44,
                                                 height: 44,
@@ -200,29 +198,38 @@ export default function PatientDashboard() {
                                                 color: '#005bd3',
                                                 flexShrink: 0
                                             }}>
-                                                {apt.doctorId?.name?.charAt(0) || 'D'}
+                                                {apt.doctorId?.name?.charAt(0) || apt.doctorName?.charAt(0) || 'D'}
                                             </div>
 
-                                            {/* Main content */}
                                             <div style={{ flex: 1, minWidth: 200 }}>
                                                 <div style={{ marginBottom: '0.35rem' }}>
                                                     <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.15rem' }}>
                                                         {apt.title}
                                                     </div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                                                        Dr. {apt.doctorId?.name || 'Unknown'} • {apt.specialization}
+                                                    <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                        <span style={{ background: '#dbeafe', color: '#1e40af', padding: '0.16rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
+                                                            Dr. {apt.doctorId?.name || apt.doctorName || 'Unknown'}
+                                                        </span>
+                                                        <span>• {apt.specialization}</span>
                                                     </div>
                                                 </div>
 
-                                                {/* Details row */}
                                                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.75rem', color: '#64748b' }}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <DollarSign size={12} color="#94a3b8" />
                                                         ₹{apt.price}
                                                     </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: isFullyBooked ? '#dc2626' : '#10b981' }}>
-                                                        <Clock size={12} color={isFullyBooked ? '#dc2626' : '#10b981'} />
-                                                        {availableCount} slot{availableCount !== 1 ? 's' : ''} available
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#10b981' }}>
+                                                        <Clock size={12} color="#10b981" />
+                                                        {apt.consultationDurationMinutes} min per patient
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#2563eb' }}>
+                                                        <Users size={12} color="#2563eb" />
+                                                        Current token: {apt.currentTokenNumber || '-'}
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#64748b' }}>
+                                                        <Users size={12} color="#94a3b8" />
+                                                        Issued tokens: {apt.totalTokensIssued || 0}
                                                     </span>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <MapPin size={12} color="#94a3b8" />
@@ -231,38 +238,38 @@ export default function PatientDashboard() {
                                                 </div>
                                             </div>
 
-                                            {/* Book button */}
-                                            <button 
+                                            <button
                                                 onClick={() => handleBookSlot(apt)}
-                                                disabled={isFullyBooked}
+                                                disabled={!isBookable}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '5px',
                                                     padding: '0.5rem 1rem',
-                                                    background: isFullyBooked ? '#f1f2f3' : '#005bd3',
-                                                    color: isFullyBooked ? '#8a8a8a' : '#fff',
+                                                    background: isBookable ? '#005bd3' : '#f1f2f3',
+                                                    color: isBookable ? '#fff' : '#8a8a8a',
                                                     border: '1px solid transparent',
                                                     borderRadius: '6px',
                                                     fontSize: '0.8rem',
                                                     fontWeight: 600,
-                                                    cursor: isFullyBooked ? 'not-allowed' : 'pointer',
+                                                    cursor: isBookable ? 'pointer' : 'not-allowed',
                                                     flexShrink: 0,
-                                                    transition: 'all 0.15s'
+                                                    transition: 'all 0.15s',
+                                                    opacity: isBookable ? 1 : 0.8
                                                 }}
                                                 onMouseEnter={(e) => {
-                                                    if (!isFullyBooked) {
+                                                    if (isBookable) {
                                                         e.target.style.background = '#0047a5';
                                                     }
                                                 }}
                                                 onMouseLeave={(e) => {
-                                                    if (!isFullyBooked) {
+                                                    if (isBookable) {
                                                         e.target.style.background = '#005bd3';
                                                     }
                                                 }}
                                             >
                                                 <Users size={13} />
-                                                {isFullyBooked ? 'Fully Booked' : 'Book Now'}
+                                                {isBookable ? 'Book Token' : 'Unavailable'}
                                             </button>
                                         </div>
                                     );

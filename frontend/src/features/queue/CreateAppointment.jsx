@@ -13,61 +13,21 @@ export default function CreateAppointment() {
         appointmentDate: '',
         price: user?.consultationFee ? String(user.consultationFee) : '',
         address: user?.clinicAddress || '',
-        startTime: user?.workingHours?.start || '09:00',
-        endTime: user?.workingHours?.end || '14:00',
-        slotDuration: user?.patientDuration ? String(user.patientDuration) : '10'
+        scheduleStartTime: user?.workingHours?.start || '09:00',
+        consultationDurationMinutes: user?.patientDuration ? String(user.patientDuration) : '10'
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [generatedSlots, setGeneratedSlots] = useState([]);
 
-    // Generate time slots whenever time range or duration changes
     useEffect(() => {
-        if (formData.startTime && formData.endTime && formData.slotDuration) {
-            const slots = generateTimeSlots(
-                formData.startTime,
-                formData.endTime,
-                parseInt(formData.slotDuration)
-            );
-            setGeneratedSlots(slots);
+        if (!formData.consultationDurationMinutes) {
+            setFormData((prev) => ({ ...prev, consultationDurationMinutes: '10' }));
         }
-    }, [formData.startTime, formData.endTime, formData.slotDuration]);
-
-    const generateTimeSlots = (startTime, endTime, durationMinutes) => {
-        const slots = [];
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const [endHour, endMin] = endTime.split(':').map(Number);
-
-        const startDate = new Date();
-        startDate.setHours(startHour, startMin, 0, 0);
-
-        const endDate = new Date();
-        endDate.setHours(endHour, endMin, 0, 0);
-
-        let currentTime = new Date(startDate);
-
-        while (currentTime < endDate) {
-            const hours = currentTime.getHours();
-            const minutes = currentTime.getMinutes();
-            const period = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-            const timeString = `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-            
-            slots.push(timeString);
-            currentTime.setMinutes(currentTime.getMinutes() + durationMinutes);
-        }
-
-        return slots;
-    };
+    }, [formData.consultationDurationMinutes]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (generatedSlots.length === 0) {
-            setError('No slots generated. Please check your time range and duration.');
-            return;
-        }
-
         setLoading(true);
         setError('');
 
@@ -78,7 +38,8 @@ export default function CreateAppointment() {
                 appointmentDate: formData.appointmentDate,
                 price: parseInt(formData.price),
                 address: formData.address,
-                timeSlots: generatedSlots
+                scheduleStartTime: formData.scheduleStartTime,
+                consultationDurationMinutes: parseInt(formData.consultationDurationMinutes)
             });
             alert('✅ Appointment created successfully!');
             navigate('/queue');
@@ -127,7 +88,7 @@ export default function CreateAppointment() {
                     Create New Appointment
                 </h1>
                 <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
-                    Set up your appointment session with auto-generated time slots
+                    Set up your token queue schedule for a selected date
                 </p>
             </div>
 
@@ -244,23 +205,23 @@ export default function CreateAppointment() {
                         </div>
                     </div>
 
-                    {/* Time Slot Configuration */}
+                    {/* Queue Configuration */}
                     <div style={{ marginBottom: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
                         <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Clock size={18} color="#3b82f6" />
-                            Time Slot Configuration
+                            Queue Configuration
                         </h3>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group">
                                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>
-                                    Start Time *
+                                    Schedule Start Time *
                                 </label>
                                 <input
                                     type="time"
                                     className="input"
-                                    value={formData.startTime}
-                                    onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                                    value={formData.scheduleStartTime}
+                                    onChange={(e) => setFormData({...formData, scheduleStartTime: e.target.value})}
                                     required
                                     style={{ width: '100%', padding: '0.75rem', fontSize: '0.95rem' }}
                                 />
@@ -268,29 +229,16 @@ export default function CreateAppointment() {
 
                             <div className="form-group">
                                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>
-                                    End Time *
-                                </label>
-                                <input
-                                    type="time"
-                                    className="input"
-                                    value={formData.endTime}
-                                    onChange={(e) => setFormData({...formData, endTime: e.target.value})}
-                                    required
-                                    style={{ width: '100%', padding: '0.75rem', fontSize: '0.95rem' }}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>
-                                    Slot Duration *
+                                    Consultation Time Per Patient *
                                 </label>
                                 <select
                                     className="input"
-                                    value={formData.slotDuration}
-                                    onChange={(e) => setFormData({...formData, slotDuration: e.target.value})}
+                                    value={formData.consultationDurationMinutes}
+                                    onChange={(e) => setFormData({...formData, consultationDurationMinutes: e.target.value})}
                                     required
                                     style={{ width: '100%', padding: '0.75rem', fontSize: '0.95rem' }}
                                 >
+                                    <option value="5">5 min</option>
                                     <option value="10">10 min</option>
                                     <option value="15">15 min</option>
                                     <option value="20">20 min</option>
@@ -301,53 +249,6 @@ export default function CreateAppointment() {
                             </div>
                         </div>
                     </div>
-
-                    {/* Preview Generated Slots */}
-                    {generatedSlots.length > 0 && (
-                        <div style={{ marginBottom: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#334155' }}>Generated Slots Preview</h3>
-                                <span style={{ 
-                                    background: '#10b981', 
-                                    color: 'white', 
-                                    padding: '0.35rem 0.85rem', 
-                                    borderRadius: '20px',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 600
-                                }}>
-                                    {generatedSlots.length} slots
-                                </span>
-                            </div>
-                            <div style={{ 
-                                maxHeight: '200px', 
-                                overflowY: 'auto', 
-                                padding: '1rem', 
-                                background: '#f8fafc', 
-                                borderRadius: '10px',
-                                border: '2px solid #e2e8f0'
-                            }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                                    {generatedSlots.map((slot, i) => (
-                                        <span 
-                                            key={i}
-                                            style={{
-                                                background: 'white',
-                                                color: '#3b82f6',
-                                                padding: '0.5rem 1rem',
-                                                borderRadius: '8px',
-                                                fontSize: '0.9rem',
-                                                fontWeight: 600,
-                                                border: '2px solid #dbeafe',
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                            }}
-                                        >
-                                            {slot}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Action Buttons */}
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>

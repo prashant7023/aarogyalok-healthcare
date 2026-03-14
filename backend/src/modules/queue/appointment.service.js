@@ -1,35 +1,172 @@
 const Appointment = require('./appointment.model');
 const Booking = require('./booking.model');
+const Doctor = require('../auth/doctor.model');
+const Patient = require('../auth/patient.model');
+const { AppError } = require('../../shared/middleware/error.middleware');
+
+const ACTIVE_QUEUE_BOOKING_STATUS = 'confirmed';
+
+const asDayRange = (value) => {
+    const start = new Date(value);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(value);
+    end.setHours(23, 59, 59, 999);
+    return { $gte: start, $lte: end };
+};
+
+const getDoctorIdValue = (doctorRef) => {
+    if (!doctorRef) return null;
+    if (typeof doctorRef === 'object' && doctorRef._id) return doctorRef._id;
+    return doctorRef;
+};
+
+const resolveAppointmentDoctorName = async (appointment) => {
+    if (!appointment) return appointment;
+
+    const populatedName = appointment?.doctorId?.name;
+    if (populatedName) {
+        appointment.doctorName = populatedName;
+        return appointment;
+    }
+
+    if (appointment.doctorName) {
+        return appointment;
+    }
+
+    let doctorId = getDoctorIdValue(appointment.doctorId);
+
+    if (!doctorId && appointment._id) {
+        const sourceAppointment = await Appointment.findById(appointment._id)
+            .select('doctorId doctorName')
+            .lean();
+
+        if (sourceAppointment?.doctorName) {
+            appointment.doctorName = sourceAppointment.doctorName;
+            return appointment;
+        }
+
+        doctorId = getDoctorIdValue(sourceAppointment?.doctorId);
+    }
+
+    if (!doctorId) {
+        return appointment;
+    }
+
+    let doctorName = null;
+
+    const doctor = await Doctor.findById(doctorId).select('name');
+    if (doctor?.name) {
+        doctorName = doctor.name;
+    } else {
+        const legacyDoctor = await Patient.findById(doctorId).select('name role');
+        if (legacyDoctor?.name) {
+            doctorName = legacyDoctor.name;
+        }
+    }
+
+    if (doctorName) {
+        appointment.doctorName = doctorName;
+        if (typeof appointment.save === 'function') {
+            await appointment.save();
+        }
+    }
+
+    return appointment;
+};
+
+const resolveAppointmentsDoctorNames = async (appointments = []) => {
+    await Promise.all(appointments.map((appointment) => resolveAppointmentDoctorName(appointment)));
+    return appointments;
+};
+
+const recalculateQueueForAppointment = async (appointmentId, io) => {
+    const appointment = await Appointment.findById(appointmentId);
+
+    if (!appointment) {
+        return null;
+    }
+
+    const queuedBookings = await Booking.find({
+        appointmentId,
+        status: ACTIVE_QUEUE_BOOKING_STATUS,
+    }).sort({ tokenNumber: 1, createdAt: 1 });
+
+    const now = new Date();
+    const duration = appointment.consultationDurationMinutes || 10;
+
+    if (queuedBookings.length > 0) {
+        const bulkOps = queuedBookings.map((booking, index) => ({
+            updateOne: {
+                filter: { _id: booking._id },
+                update: {
+                    estimatedWaitMinutes: index * duration,
+                    estimatedTurnTime: new Date(now.getTime() + index * duration * 60000),
+                },
+            },
+        }));
+
+        await Booking.bulkWrite(bulkOps);
+    }
+
+    appointment.currentTokenNumber = queuedBookings[0]?.tokenNumber ?? null;
+    await appointment.save();
+
+    const refreshedQueue = await Booking.find({
+        appointmentId,
+        status: ACTIVE_QUEUE_BOOKING_STATUS,
+    })
+        .select('tokenNumber patientName status estimatedTurnTime estimatedWaitMinutes isOfflineEntry')
+        .sort({ tokenNumber: 1, createdAt: 1 });
+
+    const payload = {
+        appointmentId: appointment._id,
+        currentTokenNumber: appointment.currentTokenNumber,
+        consultationDurationMinutes: appointment.consultationDurationMinutes,
+        queue: refreshedQueue,
+    };
+
+    if (io) {
+        io.to(`appointment-${appointment._id}`).emit('queue-updated', payload);
+        io.to(`doctor-${appointment.doctorId}`).emit('queue-updated', payload);
+    }
+
+    return payload;
+};
 
 // ========== DOCTOR SERVICES ==========
 
 // Create a new appointment session
-const createAppointment = async (doctorId, appointmentData) => {
+const createAppointment = async (doctorId, appointmentData, creatorName) => {
     const {  
         title,
         specialization,
         appointmentDate,
-        timeSlots, // Array of time strings like ["10:00 AM", "10:30 AM", ...]
+        consultationDurationMinutes,
+        scheduleStartTime,
         price,
         address
     } = appointmentData;
 
-    // Convert time slots to proper format
-    const formattedSlots = timeSlots.map(time => ({
-        time,
-        isBooked: false
-    }));
+    if (!consultationDurationMinutes) {
+        throw new AppError('Consultation duration is required', 400);
+    }
+
+    const doctor = await Doctor.findById(doctorId).select('name');
+    const fallbackDoctor = !doctor?.name ? await Patient.findById(doctorId).select('name role') : null;
+    const resolvedDoctorName = doctor?.name || fallbackDoctor?.name || creatorName || null;
 
     const appointment = await Appointment.create({
         doctorId,
+        doctorName: resolvedDoctorName,
         title,
         specialization,
         appointmentDate,
-        timeSlots: formattedSlots,
+        consultationDurationMinutes: Number(consultationDurationMinutes),
+        scheduleStartTime: scheduleStartTime || '09:00',
         price,
         address,
-        totalSlots: formattedSlots.length,
-        bookedSlots: 0
+        totalTokensIssued: 0,
+        currentTokenNumber: null,
     });
 
     return appointment;
@@ -40,13 +177,7 @@ const getDoctorAppointments = async (doctorId, date) => {
     const query = { doctorId };
     
     if (date) {
-        const startOfDay = new Date(date);
-        startOfDay.setHours(0, 0, 0, 0);
-        
-        const endOfDay = new Date(date);
-        endOfDay.setHours(23, 59, 59, 999);
-        
-        query.appointmentDate = { $gte: startOfDay, $lte: endOfDay };
+        query.appointmentDate = asDayRange(date);
     }
 
     // If no date filter, sort by latest first. If date filter, sort by date ascending
@@ -66,34 +197,95 @@ const getAppointmentDetails = async (appointmentId, doctorId) => {
         throw new Error('Appointment not found');
     }
 
+    await recalculateQueueForAppointment(appointmentId);
+
+    const refreshedAppointment = await Appointment.findOne({ 
+        _id: appointmentId,
+        doctorId 
+    });
+
     const bookings = await Booking.find({ appointmentId })
         .populate('patientId', 'name email phone')
-        .sort({ timeSlot: 1 });
+        .sort({ tokenNumber: 1, createdAt: 1 });
 
     return {
-        appointment,
+        appointment: refreshedAppointment,
         bookings
     };
 };
 
 // Mark patient attendance/completion
-const markPatient = async (bookingId, doctorId, markStatus) => {
+const markPatient = async (bookingId, doctorId, markStatus, io) => {
     const booking = await Booking.findById(bookingId).populate('appointmentId');
     
     if (!booking) {
-        throw new Error('Booking not found');
+        throw new AppError('Booking not found', 404);
     }
 
     if (booking.appointmentId.doctorId.toString() !== doctorId.toString()) {
-        throw new Error('Unauthorized');
+        throw new AppError('Unauthorized', 403);
     }
 
     booking.markedBy = markStatus;
     if (markStatus === 'completed') {
         booking.status = 'completed';
+        booking.estimatedTurnTime = null;
+        booking.estimatedWaitMinutes = null;
+    }
+
+    if (markStatus === 'absent') {
+        booking.status = 'cancelled';
+        booking.estimatedTurnTime = null;
+        booking.estimatedWaitMinutes = null;
     }
     
     await booking.save();
+
+    if (io) {
+        io.to(`appointment-${booking.appointmentId._id}`).emit('booking-status-updated', {
+            appointmentId: booking.appointmentId._id.toString(),
+            bookingId: booking._id.toString(),
+            tokenNumber: booking.tokenNumber,
+            status: booking.status,
+            markedBy: booking.markedBy,
+        });
+    }
+
+    await recalculateQueueForAppointment(booking.appointmentId._id, io);
+    return booking;
+};
+
+const addOfflinePatientToQueue = async (appointmentId, doctorId, data, io) => {
+    const appointment = await Appointment.findById(appointmentId);
+
+    if (!appointment) {
+        throw new AppError('Appointment not found', 404);
+    }
+
+    if (appointment.doctorId.toString() !== doctorId.toString()) {
+        throw new AppError('Unauthorized', 403);
+    }
+
+    const lastBooking = await Booking.findOne({ appointmentId }).sort({ tokenNumber: -1 });
+    const tokenNumber = (lastBooking?.tokenNumber || 0) + 1;
+
+    const booking = await Booking.create({
+        appointmentId,
+        patientId: null,
+        patientName: data.patientName,
+        patientPhone: data.patientPhone,
+        patientAge: data.patientAge,
+        patientGender: data.patientGender,
+        description: data.description,
+        tokenNumber,
+        isOfflineEntry: true,
+    });
+
+    appointment.totalTokensIssued = Math.max(appointment.totalTokensIssued || 0, tokenNumber);
+    await appointment.save();
+
+    await recalculateQueueForAppointment(appointmentId, io);
+
     return booking;
 };
 
@@ -113,29 +305,53 @@ const getAllAppointments = async (filters = {}) => {
         query.appointmentDate = { $gte: new Date(filters.fromDate) };
     }
 
-    return Appointment.find(query)
+    if (filters.date) {
+        query.appointmentDate = asDayRange(filters.date);
+    }
+
+    const appointments = await Appointment.find(query)
         .populate('doctorId', 'name email')
         .sort({ appointmentDate: 1 });
+
+    await resolveAppointmentsDoctorNames(appointments);
+    return appointments;
 };
 
-// Get appointment with available slots
+// Get appointment queue details
 const getAppointmentWithSlots = async (appointmentId) => {
     const appointment = await Appointment.findById(appointmentId)
         .populate('doctorId', 'name email phone');
 
     if (!appointment) {
-        throw new Error('Appointment not found');
+        throw new AppError('Appointment not found', 404);
     }
 
-    return appointment;
+    await recalculateQueueForAppointment(appointmentId);
+
+    const refreshedAppointment = await Appointment.findById(appointmentId)
+        .populate('doctorId', 'name email phone');
+
+    await resolveAppointmentDoctorName(refreshedAppointment);
+
+    const queue = await Booking.find({
+        appointmentId,
+        status: ACTIVE_QUEUE_BOOKING_STATUS,
+    })
+        .select('tokenNumber patientName status estimatedTurnTime estimatedWaitMinutes isOfflineEntry')
+        .sort({ tokenNumber: 1, createdAt: 1 });
+
+    return {
+        ...refreshedAppointment.toObject(),
+        queue,
+    };
 };
 
-// Book a slot in an appointment
+// Book into appointment queue
 const bookSlot = async (patientId, bookingData, io) => {
     const {
         appointmentId,
-        timeSlot,
         patientName,
+        patientPhone,
         patientAge,
         patientGender,
         description
@@ -144,35 +360,43 @@ const bookSlot = async (patientId, bookingData, io) => {
     const appointment = await Appointment.findById(appointmentId);
     
     if (!appointment) {
-        throw new Error('Appointment not found');
+        throw new AppError('Appointment not found', 404);
     }
 
-    // Check if slot exists and is available
-    const slot = appointment.timeSlots.find(s => s.time === timeSlot);
-    
-    if (!slot) {
-        throw new Error('Time slot not found');
+    if (appointment.status !== 'active') {
+        throw new AppError('Appointment is not active', 400);
     }
 
-    if (slot.isBooked) {
-        throw new Error('This slot is already booked');
+    const existing = await Booking.findOne({
+        appointmentId,
+        patientId,
+        status: ACTIVE_QUEUE_BOOKING_STATUS,
+    });
+
+    if (existing) {
+        throw new AppError('You already have an active token for this appointment', 400);
     }
+
+    const lastBooking = await Booking.findOne({ appointmentId }).sort({ tokenNumber: -1 });
+    const tokenNumber = (lastBooking?.tokenNumber || 0) + 1;
 
     // Create booking
     const booking = await Booking.create({
         appointmentId,
         patientId,
-        timeSlot,
+        tokenNumber,
         patientName,
+        patientPhone,
         patientAge,
         patientGender,
-        description
+        description,
+        isOfflineEntry: false,
     });
 
-    // Mark slot as booked
-    slot.isBooked = true;
-    appointment.bookedSlots += 1;
+    appointment.totalTokensIssued = Math.max(appointment.totalTokensIssued || 0, tokenNumber);
     await appointment.save();
+
+    const queueState = await recalculateQueueForAppointment(appointmentId, io);
 
     // Emit real-time update
     if (io) {
@@ -182,17 +406,28 @@ const bookSlot = async (patientId, bookingData, io) => {
         });
     }
 
-    return booking;
+    return {
+        ...booking.toObject(),
+        currentTokenNumber: queueState?.currentTokenNumber ?? null,
+    };
 };
 
 // Get patient's bookings
 const getPatientBookings = async (patientId) => {
-    return Booking.find({ patientId })
+    const bookings = await Booking.find({ patientId })
         .populate({
             path: 'appointmentId',
             populate: { path: 'doctorId', select: 'name email' }
         })
         .sort({ createdAt: -1 });
+
+    await Promise.all(
+        bookings
+            .filter((booking) => booking.appointmentId)
+            .map((booking) => resolveAppointmentDoctorName(booking.appointmentId))
+    );
+
+    return bookings;
 };
 
 // Cancel booking
@@ -200,30 +435,29 @@ const cancelBooking = async (bookingId, patientId, io) => {
     const booking = await Booking.findById(bookingId);
     
     if (!booking) {
-        throw new Error('Booking not found');
+        throw new AppError('Booking not found', 404);
     }
 
-    if (booking.patientId.toString() !== patientId.toString()) {
-        throw new Error('Unauthorized');
+    if (!booking.patientId || booking.patientId.toString() !== patientId.toString()) {
+        throw new AppError('Unauthorized', 403);
     }
 
     // Update booking status
     booking.status = 'cancelled';
+    booking.markedBy = 'absent';
+    booking.estimatedTurnTime = null;
+    booking.estimatedWaitMinutes = null;
     await booking.save();
 
-    // Free up the slot
     const appointment = await Appointment.findById(booking.appointmentId);
-    if (appointment) {
-        const slot = appointment.timeSlots.find(s => s.time === booking.timeSlot);
-        if (slot) {
-            slot.isBooked = false;
-            appointment.bookedSlots = Math.max(0, appointment.bookedSlots - 1);
-            await appointment.save();
-        }
+    if (!appointment) {
+        return booking;
     }
 
+    await recalculateQueueForAppointment(booking.appointmentId, io);
+
     // Emit real-time update
-    if (io && appointment) {
+    if (io) {
         io.to(`doctor-${appointment.doctorId}`).emit('booking-cancelled', {
             appointmentId: booking.appointmentId,
             bookingId
@@ -274,6 +508,7 @@ module.exports = {
     getDoctorAppointments,
     getAppointmentDetails,
     markPatient,
+    addOfflinePatientToQueue,
     
     // Patient services
     getAllAppointments,
@@ -286,5 +521,6 @@ module.exports = {
     deleteAllAppointments,
     deleteAllBookings,
     deleteAppointmentById,
-    clearAllQueueData
+    clearAllQueueData,
+    recalculateQueueForAppointment,
 };
