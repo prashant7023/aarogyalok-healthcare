@@ -21,6 +21,8 @@ const PAGE_TITLES = {
     '/medication': 'Medication',
     '/queue': 'Queue Management',
     '/records': 'Health Records',
+    '/settings': 'Settings',
+    '/subscription': 'Subscription',
 };
 
 /* ── Profile dropdown ────────────────────────────────────────── */

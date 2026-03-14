@@ -10,6 +10,8 @@ import BookAppointment from './features/queue/BookAppointment';
 import CreateAppointment from './features/queue/CreateAppointment';
 import QueueMapSearch from './features/queue/QueueMapSearch';
 import RecordsPage from './features/records/RecordsPage';
+import SettingsPage from './features/settings/SettingsPage';
+import SubscriptionPage from './features/subscription/SubscriptionPage';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
 import useAuthStore from './features/auth/authStore';
@@ -43,6 +45,8 @@ export default function App() {
           <Route path="queue/book" element={<BookAppointment />} />
           <Route path="queue/create-appointment" element={<CreateAppointment />} />
           <Route path="records" element={<RecordsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="subscription" element={<SubscriptionPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
