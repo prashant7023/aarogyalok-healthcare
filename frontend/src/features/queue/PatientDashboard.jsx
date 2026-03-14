@@ -45,7 +45,7 @@ export default function PatientDashboard() {
     const stats = {
         total: appointments.length,
         specializations: [...new Set(appointments.map(a => a.specialization))].length,
-        availableSlots: appointments.reduce((sum, apt) => sum + (apt.totalSlots - apt.bookedSlots), 0)
+        totalIssuedTokens: appointments.reduce((sum, apt) => sum + (apt.totalTokensIssued || 0), 0)
     };
 
     return (
@@ -82,8 +82,8 @@ export default function PatientDashboard() {
                         <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#60a5fa', lineHeight: 1 }}>{stats.specializations}</div>
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Available Slots</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{stats.availableSlots}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Issued Tokens</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{stats.totalIssuedTokens}</div>
                     </div>
                 </div>
                 <div style={{ padding: '0.5rem 0.85rem', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -169,9 +169,6 @@ export default function PatientDashboard() {
                             </h2>
                             <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                                 {apts.map((apt, idx) => {
-                                    const availableCount = apt.totalSlots - apt.bookedSlots;
-                                    const isFullyBooked = availableCount <= 0;
-                                    
                                     return (
                                         <div 
                                             key={apt._id}
@@ -180,9 +177,9 @@ export default function PatientDashboard() {
                                                 padding: '1rem 1.25rem',
                                                 borderBottom: idx < apts.length - 1 ? '1px solid #f1f5f9' : 'none',
                                                 transition: 'background .15s',
-                                                opacity: isFullyBooked ? 0.6 : 1
+                                                opacity: 1
                                             }}
-                                            onMouseEnter={(e) => !isFullyBooked && (e.currentTarget.style.background = '#f8fafc')}
+                                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
                                             onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                         >
                                             {/* Doctor avatar */}
@@ -199,7 +196,7 @@ export default function PatientDashboard() {
                                                 color: 'white',
                                                 flexShrink: 0
                                             }}>
-                                                {apt.doctorId?.name?.charAt(0) || 'D'}
+                                                {apt.doctorId?.name?.charAt(0) || apt.doctorName?.charAt(0) || 'D'}
                                             </div>
 
                                             {/* Main content */}
@@ -208,8 +205,11 @@ export default function PatientDashboard() {
                                                     <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.15rem' }}>
                                                         {apt.title}
                                                     </div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                                                        Dr. {apt.doctorId?.name || 'Unknown'} • {apt.specialization}
+                                                    <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                        <span style={{ background: '#dbeafe', color: '#1e40af', padding: '0.16rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
+                                                            Dr. {apt.doctorId?.name || apt.doctorName || 'Unknown'}
+                                                        </span>
+                                                        <span>• {apt.specialization}</span>
                                                     </div>
                                                 </div>
 
@@ -219,9 +219,17 @@ export default function PatientDashboard() {
                                                         <DollarSign size={12} color="#94a3b8" />
                                                         ₹{apt.price}
                                                     </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: isFullyBooked ? '#dc2626' : '#10b981' }}>
-                                                        <Clock size={12} color={isFullyBooked ? '#dc2626' : '#10b981'} />
-                                                        {availableCount} slot{availableCount !== 1 ? 's' : ''} available
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#10b981' }}>
+                                                        <Clock size={12} color="#10b981" />
+                                                        {apt.consultationDurationMinutes} min per patient
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#2563eb' }}>
+                                                        <Users size={12} color="#2563eb" />
+                                                        Current token: {apt.currentTokenNumber || '-'}
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: '#64748b' }}>
+                                                        <Users size={12} color="#94a3b8" />
+                                                        Issued tokens: {apt.totalTokensIssued || 0}
                                                     </span>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <MapPin size={12} color="#94a3b8" />
@@ -233,35 +241,30 @@ export default function PatientDashboard() {
                                             {/* Book button */}
                                             <button 
                                                 onClick={() => handleBookSlot(apt)}
-                                                disabled={isFullyBooked}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '5px',
                                                     padding: '0.5rem 1rem',
-                                                    background: isFullyBooked ? '#f1f5f9' : '#3b82f6',
-                                                    color: isFullyBooked ? '#94a3b8' : '#fff',
+                                                    background: '#3b82f6',
+                                                    color: '#fff',
                                                     border: 'none',
                                                     borderRadius: '6px',
                                                     fontSize: '0.8rem',
                                                     fontWeight: 600,
-                                                    cursor: isFullyBooked ? 'not-allowed' : 'pointer',
+                                                    cursor: 'pointer',
                                                     flexShrink: 0,
                                                     transition: 'all 0.15s'
                                                 }}
                                                 onMouseEnter={(e) => {
-                                                    if (!isFullyBooked) {
-                                                        e.target.style.background = '#2563eb';
-                                                    }
+                                                    e.target.style.background = '#2563eb';
                                                 }}
                                                 onMouseLeave={(e) => {
-                                                    if (!isFullyBooked) {
-                                                        e.target.style.background = '#3b82f6';
-                                                    }
+                                                    e.target.style.background = '#3b82f6';
                                                 }}
                                             >
                                                 <Users size={13} />
-                                                {isFullyBooked ? 'Fully Booked' : 'Book Now'}
+                                                Book Token
                                             </button>
                                         </div>
                                     );

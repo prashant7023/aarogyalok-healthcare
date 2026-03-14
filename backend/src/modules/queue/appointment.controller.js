@@ -8,7 +8,8 @@ const { sendSuccess } = require('../../shared/utils/response');
 const createAppointment = asyncHandler(async (req, res) => {
     const appointment = await appointmentService.createAppointment(
         req.user._id,
-        req.body
+        req.body,
+        req.user?.name
     );
     sendSuccess(res, appointment, 'Appointment created successfully', 201);
 });
@@ -35,12 +36,25 @@ const getAppointmentDetails = asyncHandler(async (req, res) => {
 // Mark patient (present/absent/completed)
 const markPatient = asyncHandler(async (req, res) => {
     const { markStatus } = req.body;
+    const io = req.app.get('io');
     const booking = await appointmentService.markPatient(
         req.params.bookingId,
         req.user._id,
-        markStatus
+        markStatus,
+        io
     );
     sendSuccess(res, booking, 'Patient marked successfully');
+});
+
+const addOfflinePatientToQueue = asyncHandler(async (req, res) => {
+    const io = req.app.get('io');
+    const booking = await appointmentService.addOfflinePatientToQueue(
+        req.params.appointmentId,
+        req.user._id,
+        req.body,
+        io
+    );
+    sendSuccess(res, booking, 'Offline patient added to queue successfully', 201);
 });
 
 // ========== PATIENT CONTROLLERS ==========
@@ -49,7 +63,8 @@ const markPatient = asyncHandler(async (req, res) => {
 const getAllAppointments = asyncHandler(async (req, res) => {
     const filters = {
         specialization: req.query.specialization,
-        fromDate: req.query.fromDate
+        fromDate: req.query.fromDate,
+        date: req.query.date,
     };
     const appointments = await appointmentService.getAllAppointments(filters);
     sendSuccess(res, appointments, 'Appointments fetched successfully');
@@ -71,7 +86,7 @@ const bookSlot = asyncHandler(async (req, res) => {
         req.body,
         io
     );
-    sendSuccess(res, booking, 'Slot booked successfully', 201);
+    sendSuccess(res, booking, 'Token booked successfully', 201);
 });
 
 // Get patient's bookings
@@ -123,6 +138,7 @@ module.exports = {
     getDoctorAppointments,
     getAppointmentDetails,
     markPatient,
+    addOfflinePatientToQueue,
     
     // Patient
     getAllAppointments,

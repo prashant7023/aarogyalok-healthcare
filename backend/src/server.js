@@ -44,6 +44,13 @@ io.on('connection', (socket) => {
         console.log(`Socket ${socket.id} joined ${room}`);
     });
 
+    // Join appointment queue room for live token updates
+    socket.on('join-appointment-queue', (appointmentId) => {
+        const room = `appointment-${appointmentId}`;
+        socket.join(room);
+        console.log(`Socket ${socket.id} joined ${room}`);
+    });
+
     socket.on('disconnect', () => {
         console.log(`❌ Client disconnected: ${socket.id}`);
     });

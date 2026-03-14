@@ -24,14 +24,17 @@ router.get('/doctor/appointments/:appointmentId', protect, appointmentController
 // Mark patient (present/absent/completed)
 router.patch('/doctor/bookings/:bookingId/mark', protect, appointmentController.markPatient);
 
+// Doctor can add walk-in/offline patient directly to queue
+router.post('/doctor/appointments/:appointmentId/offline-bookings', protect, appointmentController.addOfflinePatientToQueue);
+
 // ===== PATIENT ROUTES =====
 // Browse all appointments
 router.get('/appointments', appointmentController.getAllAppointments);
 
-// Get specific appointment with slots
+// Get specific appointment with queue summary
 router.get('/appointments/:appointmentId', appointmentController.getAppointmentWithSlots);
 
-// Book a slot
+// Book a queue token
 router.post('/bookings', protect, appointmentController.bookSlot);
 
 // Get my bookings

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Clock, Calendar, User, MapPin, DollarSign } from 'lucide-react';
+import { ArrowLeft, Calendar, User, MapPin, DollarSign, Hash, Clock } from 'lucide-react';
 import api from '../../shared/utils/api';
 
 export default function BookAppointment() {
@@ -12,11 +12,11 @@ export default function BookAppointment() {
         patientName: '',
         patientAge: '',
         patientGender: 'Male',
-        description: '',
-        timeSlot: ''
+        description: ''
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [tokenPopup, setTokenPopup] = useState(null);
 
     if (!appointment) {
         return (
@@ -41,15 +41,20 @@ export default function BookAppointment() {
         setError('');
 
         try {
-            await api.post('/queue/bookings', {
+            const res = await api.post('/queue/bookings', {
                 appointmentId: appointment._id,
                 ...formData,
                 patientAge: parseInt(formData.patientAge)
             });
-            alert('✅ Slot booked successfully!');
-            navigate('/queue');
+
+            const tokenNumber = res?.data?.data?.tokenNumber;
+            setTokenPopup(tokenNumber || '—');
+
+            setTimeout(() => {
+                navigate('/queue/my-appointments');
+            }, 1600);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to book slot');
+            setError(err.response?.data?.message || 'Failed to book token');
         } finally {
             setLoading(false);
         }
@@ -57,6 +62,30 @@ export default function BookAppointment() {
 
     return (
         <div className="fade-in" style={{ maxWidth: '600px', margin: '0 auto', padding: '1rem' }}>
+            {tokenPopup && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: '1rem',
+                        right: '1rem',
+                        zIndex: 1000,
+                        background: '#0f172a',
+                        color: '#fff',
+                        borderRadius: '10px',
+                        padding: '0.75rem 1rem',
+                        boxShadow: '0 8px 22px rgba(15,23,42,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                    }}
+                >
+                    <Hash size={14} color="#60a5fa" />
+                    <div style={{ fontSize: '0.84rem', fontWeight: 700 }}>
+                        Token booked: #{tokenPopup}
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div style={{ marginBottom: '1rem' }}>
                 <button
@@ -90,7 +119,7 @@ export default function BookAppointment() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', fontSize: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <User size={14} />
-                            <span>Dr. {appointment.doctorId?.name || 'Unknown'}</span>
+                            <span>Dr. {appointment.doctorId?.name || appointment.doctorName || 'Unknown'}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <Calendar size={14} />
@@ -100,6 +129,20 @@ export default function BookAppointment() {
                             <DollarSign size={14} />
                             <span>₹{appointment.price}</span>
                         </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Clock size={14} />
+                            <span>{appointment.consultationDurationMinutes} min/patient</span>
+                        </div>
+                    </div>
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Hash size={13} />
+                            Current token: {appointment.currentTokenNumber || '-'}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Hash size={13} />
+                            Issued tokens: {appointment.totalTokensIssued || 0}
+                        </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'start', gap: '0.35rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.2)', fontSize: '0.85rem' }}>
                         <MapPin size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
@@ -182,73 +225,8 @@ export default function BookAppointment() {
                         </div>
 
                         <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#0f172a', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
-                            Appointment Details
+                            Symptoms / Notes
                         </h3>
-
-                        {/* Time Slot Selection */}
-                        <div className="form-group" style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.85rem' }}>
-                                Select Time Slot *
-                            </label>
-                            <div style={{ 
-                                display: 'grid', 
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-                                gap: '0.5rem'
-                            }}>
-                                {appointment.timeSlots.map((slot, i) => (
-                                    <button
-                                        key={i}
-                                        type="button"
-                                        onClick={() => !slot.isBooked && setFormData({...formData, timeSlot: slot.time})}
-                                        disabled={slot.isBooked}
-                                        style={{
-                                            padding: '0.5rem',
-                                            borderRadius: '6px',
-                                            border: slot.isBooked 
-                                                ? '1px solid #e2e8f0' 
-                                                : formData.timeSlot === slot.time 
-                                                    ? '2px solid #3b82f6' 
-                                                    : '1px solid #e2e8f0',
-                                            background: slot.isBooked
-                                                ? '#f1f5f9'
-                                                : formData.timeSlot === slot.time 
-                                                    ? '#dbeafe' 
-                                                    : 'white',
-                                            color: slot.isBooked
-                                                ? '#94a3b8'
-                                                : formData.timeSlot === slot.time 
-                                                    ? '#1e40af' 
-                                                    : '#334155',
-                                            fontWeight: formData.timeSlot === slot.time ? 700 : 600,
-                                            fontSize: '0.8rem',
-                                            cursor: slot.isBooked ? 'not-allowed' : 'pointer',
-                                            transition: 'all 0.2s ease',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.3rem',
-                                            opacity: slot.isBooked ? 0.6 : 1
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!slot.isBooked && formData.timeSlot !== slot.time) {
-                                                e.target.style.background = '#f8fafc';
-                                                e.target.style.borderColor = '#cbd5e1';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!slot.isBooked && formData.timeSlot !== slot.time) {
-                                                e.target.style.background = 'white';
-                                                e.target.style.borderColor = '#e2e8f0';
-                                            }
-                                        }}
-                                    >
-                                        <Clock size={12} />
-                                        <span>{slot.time}</span>
-                                        {slot.isBooked && <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>(Booked)</span>}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
 
                         {/* Reason for Visit */}
                         <div className="form-group" style={{ marginBottom: '1rem' }}>
@@ -279,10 +257,10 @@ export default function BookAppointment() {
                             <button 
                                 type="submit"
                                 className="btn btn-primary"
-                                disabled={loading || !formData.timeSlot}
+                                disabled={loading}
                                 style={{ flex: 1, padding: '0.6rem', fontSize: '0.9rem' }}
                             >
-                                {loading ? 'Booking...' : 'Confirm'}
+                                {loading ? 'Booking...' : 'Confirm & Get Token'}
                             </button>
                         </div>
                     </form>

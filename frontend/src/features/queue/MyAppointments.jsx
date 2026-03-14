@@ -1,14 +1,88 @@
-import { useState, useEffect } from 'react';
-import { Calendar, Clock, User, MapPin, FileText, XCircle, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Calendar, Clock, MapPin, FileText, XCircle, RefreshCw, Hash, Timer, Activity } from 'lucide-react';
+import { io } from 'socket.io-client';
 import api from '../../shared/utils/api';
+
+const formatEta = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 export default function MyAppointments() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(false);
+    const appointmentIds = useMemo(
+        () => [...new Set(bookings.map((booking) => booking.appointmentId?._id).filter(Boolean))],
+        [bookings]
+    );
 
     useEffect(() => {
         fetchBookings();
     }, []);
+
+    useEffect(() => {
+        if (appointmentIds.length === 0) return;
+
+        const socketUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+        const socket = io(socketUrl);
+
+        socket.on('connect', () => {
+            appointmentIds.forEach((appointmentId) => {
+                if (appointmentId) {
+                    socket.emit('join-appointment-queue', appointmentId);
+                }
+            });
+        });
+
+        socket.on('queue-updated', ({ appointmentId, queue, currentTokenNumber }) => {
+            setBookings((prev) =>
+                prev.map((booking) => {
+                    if (booking.appointmentId?._id !== appointmentId) return booking;
+
+                    const appointment = {
+                        ...booking.appointmentId,
+                        currentTokenNumber,
+                    };
+
+                    const matched = queue?.find((item) => item._id === booking._id || item.tokenNumber === booking.tokenNumber);
+                    if (!matched) {
+                        return { ...booking, appointmentId: appointment };
+                    }
+
+                    return {
+                        ...booking,
+                        appointmentId: appointment,
+                        estimatedTurnTime: matched.estimatedTurnTime,
+                        estimatedWaitMinutes: matched.estimatedWaitMinutes,
+                        status: matched.status || booking.status,
+                    };
+                })
+            );
+        });
+
+        socket.on('booking-status-updated', ({ appointmentId, bookingId, tokenNumber, status, markedBy }) => {
+            setBookings((prev) =>
+                prev.map((booking) => {
+                    if (booking.appointmentId?._id !== appointmentId) return booking;
+
+                    const isMatched = booking._id === bookingId || booking.tokenNumber === tokenNumber;
+                    if (!isMatched) return booking;
+
+                    return {
+                        ...booking,
+                        status: status || booking.status,
+                        markedBy: markedBy || booking.markedBy,
+                        estimatedTurnTime: status === 'completed' || status === 'cancelled' ? null : booking.estimatedTurnTime,
+                        estimatedWaitMinutes: status === 'completed' || status === 'cancelled' ? null : booking.estimatedWaitMinutes,
+                    };
+                })
+            );
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [appointmentIds]);
 
     const fetchBookings = async () => {
         setLoading(true);
@@ -27,56 +101,69 @@ export default function MyAppointments() {
 
         try {
             await api.delete(`/queue/bookings/${bookingId}`);
-            alert('? Booking cancelled successfully');
+            alert('✅ Token cancelled successfully');
             fetchBookings();
         } catch (e) {
-            alert(e.response?.data?.message || 'Failed to cancel booking');
+            alert(e.response?.data?.message || 'Failed to cancel token');
         }
     };
 
-    // Count stats
-    const stats = {
-        total: bookings.length,
-        confirmed: bookings.filter(b => b.status === 'confirmed').length,
-        completed: bookings.filter(b => b.status === 'completed' || b.markedBy === 'completed').length,
-        cancelled: bookings.filter(b => b.status === 'cancelled').length,
-    };
+    const activeBookings = useMemo(
+        () => bookings.filter((booking) => booking.status === 'confirmed'),
+        [bookings]
+    );
 
     return (
         <div className="fade-in">
-            {/* Compact header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>My Appointments</h1>
-                <button onClick={fetchBookings} disabled={loading}
-                    style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>My Queue Tokens</h1>
+                <button
+                    onClick={fetchBookings}
+                    disabled={loading}
+                    style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#3b82f6',
+                        color: '#fff',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                    }}
+                >
                     <RefreshCw size={13} /> Refresh
                 </button>
             </div>
 
-            {/* Stats banner */}
-            <div style={{
-                display: 'flex', alignItems: 'center', gap: '1rem',
-                background: 'linear-gradient(135deg,#0f172a,#1e3a5f)',
-                borderRadius: '12px', padding: '0.85rem 1.25rem',
-                marginBottom: '1rem', flexWrap: 'wrap', justifyContent: 'space-between'
-            }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    background: 'linear-gradient(135deg,#0f172a,#1e3a5f)',
+                    borderRadius: '12px',
+                    padding: '0.85rem 1.25rem',
+                    marginBottom: '1rem',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                }}
+            >
                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', flex: 1 }}>
                     <div>
                         <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Total</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{stats.total}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{bookings.length}</div>
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Confirmed</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#60a5fa', lineHeight: 1 }}>{stats.confirmed}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Active Tokens</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#60a5fa', lineHeight: 1 }}>{activeBookings.length}</div>
                     </div>
-                    <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Completed</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{stats.completed}</div>
-                    </div>
-                    <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Cancelled</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ef4444', lineHeight: 1 }}>{stats.cancelled}</div>
-                    </div>
+                </div>
+                <div style={{ padding: '0.5rem 0.85rem', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={16} color="#60a5fa" />
+                    <span style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600 }}>Live Queue</span>
                 </div>
             </div>
 
@@ -88,149 +175,107 @@ export default function MyAppointments() {
             ) : bookings.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#94a3b8', background: '#fff', borderRadius: '10px', border: '1px dashed #e2e8f0' }}>
                     <Calendar size={28} style={{ margin: '0 auto 0.5rem', opacity: 0.35 }} />
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#475569' }}>No appointments booked yet</div>
-                    <p style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>Book your first appointment to get started.</p>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#475569' }}>No queue tokens yet</div>
+                    <p style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>Book an appointment to get your token.</p>
                 </div>
             ) : (
                 <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                     {bookings.map((booking, idx) => {
-                        const isCancelled = booking.status === 'cancelled';
+                        const appointment = booking.appointmentId;
+                        const currentToken = appointment?.currentTokenNumber || null;
                         const isCompleted = booking.status === 'completed' || booking.markedBy === 'completed';
-                        
+                        const isCancelled = booking.status === 'cancelled';
+                        const waitMinutes = booking.estimatedWaitMinutes ?? 0;
+
                         return (
-                            <div 
+                            <div
                                 key={booking._id}
                                 style={{
-                                    display: 'flex', alignItems: 'start', gap: '1rem', flexWrap: 'wrap',
+                                    display: 'flex',
+                                    alignItems: 'start',
+                                    gap: '1rem',
+                                    flexWrap: 'wrap',
                                     padding: '1rem 1.25rem',
                                     borderBottom: idx < bookings.length - 1 ? '1px solid #f1f5f9' : 'none',
-                                    transition: 'background .15s',
-                                    opacity: isCancelled ? 0.6 : 1
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = ''}
                             >
-                                {/* Status indicator dot */}
-                                <div style={{ 
-                                    width: 8, 
-                                    height: 8, 
-                                    borderRadius: '50%', 
-                                    background: isCompleted ? '#10b981' : isCancelled ? '#94a3b8' : '#3b82f6',
+                                <div style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: '10px',
+                                    background: '#dbeafe',
+                                    color: '#1e40af',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 800,
                                     flexShrink: 0,
-                                    marginTop: '6px'
-                                }} />
+                                }}>
+                                    #{booking.tokenNumber}
+                                </div>
 
-                                {/* Main content */}
-                                <div style={{ flex: 1, minWidth: 200 }}>
-                                    {/* Title and doctor */}
+                                <div style={{ flex: 1, minWidth: 220 }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.25rem' }}>
+                                        {appointment?.title || 'Appointment'}
+                                    </div>
                                     <div style={{ marginBottom: '0.5rem' }}>
-                                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.25rem' }}>
-                                            {booking.appointmentId?.title || 'Appointment'}
-                                        </div>
-                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                                            Dr. {booking.appointmentId?.doctorId?.name || 'Unknown'}
-                                            {booking.appointmentId?.specialization && (
-                                                <span style={{ marginLeft: '0.5rem', color: '#94a3b8' }}>� {booking.appointmentId.specialization}</span>
-                                            )}
-                                        </div>
+                                        <span style={{ fontSize: '0.8rem', background: '#dbeafe', color: '#1e40af', padding: '0.18rem 0.55rem', borderRadius: '999px', fontWeight: 700, display: 'inline-flex' }}>
+                                            Dr. {appointment?.doctorId?.name || appointment?.doctorName || 'Unknown'}
+                                        </span>
                                     </div>
 
-                                    {/* Date, time, location */}
-                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem' }}>
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <Calendar size={13} color="#94a3b8" />
-                                            {new Date(booking.appointmentId?.appointmentDate).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                year: 'numeric'
-                                            })}
-                                        </span>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                                            <Clock size={13} color="#94a3b8" />
-                                            {booking.timeSlot}
+                                            {appointment?.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : '—'}
                                         </span>
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <MapPin size={13} color="#94a3b8" />
-                                            {booking.appointmentId?.address || 'N/A'}
+                                            {appointment?.address || '—'}
                                         </span>
                                     </div>
 
-                                    {/* Patient info */}
-                                    <div style={{ 
-                                        background: '#f8fafc',
-                                        padding: '0.6rem 0.75rem',
-                                        borderRadius: '6px',
-                                        border: '1px solid #e2e8f0',
-                                        fontSize: '0.8rem',
-                                        marginBottom: '0.75rem'
-                                    }}>
-                                        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '0.25rem' }}>
-                                            {booking.patientName} <span style={{ color: '#94a3b8', fontWeight: 400 }}>� {booking.patientAge}y � {booking.patientGender}</span>
-                                        </div>
-                                        {booking.description && (
-                                            <div style={{ color: '#64748b', lineHeight: 1.5 }}>
-                                                <FileText size={11} style={{ display: 'inline', marginRight: '4px' }} />
-                                                {booking.description}
-                                            </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                                        <span style={{ padding: '0.3rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: '#f8fafc', color: '#334155', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <Hash size={11} /> Token Number: #{booking.tokenNumber}
+                                        </span>
+                                        <span style={{ padding: '0.3rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: '#dbeafe', color: '#1d4ed8', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <Hash size={11} /> Current: {currentToken || '-'}
+                                        </span>
+                                        <span style={{ padding: '0.3rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: '#ecfeff', color: '#0f766e', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <Timer size={11} /> ETA: {formatEta(booking.estimatedTurnTime)}
+                                        </span>
+                                        <span style={{ padding: '0.3rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: '#f0fdf4', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <Clock size={11} /> Wait: {waitMinutes} min
+                                        </span>
+                                    </div>
+
+                                    <div style={{ marginBottom: '0.45rem' }}>
+                                        {isCompleted && (
+                                            <span style={{ padding: '0.28rem 0.6rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 700, background: '#d1fae5', color: '#047857' }}>
+                                                ✅ Treated
+                                            </span>
                                         )}
-                                    </div>
-
-                                    {/* Status badges */}
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <span style={{
-                                            padding: '0.3rem 0.65rem',
-                                            borderRadius: '6px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 700,
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            background: 
-                                                booking.status === 'confirmed' ? '#dbeafe' :
-                                                booking.status === 'completed' ? '#d1fae5' :
-                                                '#f1f5f9',
-                                            color: 
-                                                booking.status === 'confirmed' ? '#2563eb' :
-                                                booking.status === 'completed' ? '#059669' :
-                                                '#64748b'
-                                        }}>
-                                            {booking.status === 'confirmed' && <CheckCircle size={11} />}
-                                            {booking.status === 'completed' && <CheckCircle size={11} />}
-                                            {booking.status === 'cancelled' && <XCircle size={11} />}
-                                            {booking.status === 'confirmed' ? 'Confirmed' :
-                                             booking.status === 'completed' ? 'Completed' :
-                                             'Cancelled'}
-                                        </span>
-                                        {booking.markedBy && booking.markedBy !== 'pending' && (
-                                            <span style={{
-                                                padding: '0.3rem 0.65rem',
-                                                borderRadius: '6px',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 700,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                background: 
-                                                    booking.markedBy === 'completed' ? '#d1fae5' :
-                                                    booking.markedBy === 'present' ? '#dbeafe' :
-                                                    '#fee2e2',
-                                                color: 
-                                                    booking.markedBy === 'completed' ? '#059669' :
-                                                    booking.markedBy === 'present' ? '#2563eb' :
-                                                    '#dc2626'
-                                            }}>
-                                                {booking.markedBy === 'completed' && <CheckCircle size={11} />}
-                                                {booking.markedBy === 'present' && <CheckCircle size={11} />}
-                                                {booking.markedBy === 'absent' && <XCircle size={11} />}
-                                                {booking.markedBy === 'present' ? 'Present' :
-                                                 booking.markedBy === 'absent' ? 'Absent' :
-                                                 'Treatment Done'}
+                                        {isCancelled && (
+                                            <span style={{ padding: '0.28rem 0.6rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 700, background: '#fee2e2', color: '#b91c1c' }}>
+                                                ❌ Cancelled
+                                            </span>
+                                        )}
+                                        {!isCompleted && !isCancelled && (
+                                            <span style={{ padding: '0.28rem 0.6rem', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 700, background: '#fef3c7', color: '#92400e' }}>
+                                                ⏳ Waiting for turn
                                             </span>
                                         )}
                                     </div>
+
+                                    {booking.description && (
+                                        <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5 }}>
+                                            <FileText size={11} style={{ display: 'inline', marginRight: '4px' }} />
+                                            {booking.description}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Cancel button */}
                                 {booking.status === 'confirmed' && (
                                     <button
                                         onClick={() => handleCancel(booking._id)}
@@ -246,15 +291,8 @@ export default function MyAppointments() {
                                             fontSize: '0.75rem',
                                             fontWeight: 600,
                                             cursor: 'pointer',
-                                            transition: 'all 0.15s',
                                             flexShrink: 0,
-                                            height: 'fit-content'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.target.style.background = '#fee2e2';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.target.style.background = '#fff';
+                                            height: 'fit-content',
                                         }}
                                     >
                                         <XCircle size={12} />

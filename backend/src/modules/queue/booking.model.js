@@ -10,7 +10,8 @@ const bookingSchema = new mongoose.Schema(
         patientId: { 
             type: mongoose.Schema.Types.ObjectId, 
             ref: 'Patient', 
-            required: true 
+            required: false,
+            default: null
         },
         patientName: { 
             type: String, 
@@ -33,9 +34,22 @@ const bookingSchema = new mongoose.Schema(
             required: true,
             trim: true 
         },
-        timeSlot: { 
-            type: String, 
-            required: true 
+        tokenNumber: {
+            type: Number,
+            required: true,
+            min: 1
+        },
+        estimatedTurnTime: {
+            type: Date,
+            default: null
+        },
+        estimatedWaitMinutes: {
+            type: Number,
+            default: null
+        },
+        isOfflineEntry: {
+            type: Boolean,
+            default: false
         },
         status: { 
             type: String, 
@@ -53,6 +67,7 @@ const bookingSchema = new mongoose.Schema(
 
 // Index for faster queries
 bookingSchema.index({ appointmentId: 1 });
+bookingSchema.index({ appointmentId: 1, tokenNumber: 1 }, { unique: true });
 bookingSchema.index({ patientId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
