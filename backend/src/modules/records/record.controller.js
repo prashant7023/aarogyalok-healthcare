@@ -7,12 +7,20 @@ const isPrivileged = (role) => PRIVILEGED_ROLES.includes(role);
 
 const createRecord = asyncHandler(async (req, res) => {
     const fileUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const fileType = req.file?.mimetype
+        ? req.file.mimetype.split('/')[1]?.toLowerCase()
+        : undefined;
     // Doctors uploading on behalf of a patient can pass patientId in the body
     const userId =
         isPrivileged(req.user.role) && req.body.patientId
             ? req.body.patientId
             : req.user._id;
-    const record = await recordService.createRecord(userId, req.body, fileUrl);
+    const payload = {
+        ...req.body,
+        fileType,
+    };
+
+    const record = await recordService.createRecord(userId, payload, fileUrl, req.file);
     sendSuccess(res, record, 'Health record created', 201);
 });
 

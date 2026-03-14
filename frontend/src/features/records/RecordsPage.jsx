@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../../shared/utils/api';
 import useAuthStore from '../auth/authStore';
+import { jsPDF } from 'jspdf';
 import { FileText, Image as ImageIcon, File, UploadCloud, Trash2, ExternalLink, Activity, X, User, Search } from 'lucide-react';
 
 export default function RecordsPage() {
@@ -50,10 +51,17 @@ export default function RecordsPage() {
         e.preventDefault();
         setSaving(true);
         try {
+            let extractedText = '';
+            if (file?.type?.startsWith('image/') && window.puter?.ai?.img2txt) {
+                const imageDataUrl = await fileToDataUrl(file);
+                extractedText = (await window.puter.ai.img2txt(imageDataUrl)) || '';
+            }
+
             const fd = new FormData();
             fd.append('title', form.title);
             fd.append('description', form.description);
             if (file) fd.append('file', file);
+            if (extractedText.trim()) fd.append('ocrText', extractedText.trim());
             // Doctor uploads on behalf of patient
             if (isDoctor && foundPatient) fd.append('patientId', foundPatient._id);
             const res = await api.post('/records/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -66,6 +74,13 @@ export default function RecordsPage() {
         } catch (err) { alert(err.response?.data?.message || 'Failed to upload'); }
         finally { setSaving(false); }
     };
+
+    const fileToDataUrl = (selectedFile) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read file for OCR'));
+        reader.readAsDataURL(selectedFile);
+    });
 
     const handleDelete = async (id) => {
         if (!confirm('Are you sure you want to delete this record?')) return;
@@ -85,6 +100,56 @@ export default function RecordsPage() {
         rec.userId && typeof rec.userId === 'object' ? rec.userId.name : null;
 
     const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
+
+    const getMedicineRows = (rec) => (Array.isArray(rec?.medicineMap) ? rec.medicineMap : []);
+
+    const downloadSummaryPdf = (rec) => {
+        const doc = new jsPDF();
+        const title = rec?.title || 'Medical Record';
+        const summary = rec?.ocrSummary || 'No summary available.';
+        const medicines = getMedicineRows(rec);
+
+        let y = 16;
+        doc.setFontSize(14);
+        doc.text('ArogyaLok - Extracted Record Summary', 14, y);
+        y += 8;
+
+        doc.setFontSize(11);
+        doc.text(`Document: ${title}`, 14, y);
+        y += 7;
+        doc.text(`Date: ${new Date(rec.createdAt).toLocaleDateString('en-IN')}`, 14, y);
+        y += 9;
+
+        doc.setFontSize(12);
+        doc.text('Summary', 14, y);
+        y += 6;
+        doc.setFontSize(10);
+        const summaryLines = doc.splitTextToSize(summary, 180);
+        doc.text(summaryLines, 14, y);
+        y += summaryLines.length * 5 + 6;
+
+        doc.setFontSize(12);
+        doc.text('Medicine Key Map', 14, y);
+        y += 6;
+        doc.setFontSize(10);
+
+        if (medicines.length === 0) {
+            doc.text('No medicines detected.', 14, y);
+        } else {
+            medicines.forEach((m, idx) => {
+                const row = `${idx + 1}. ${m.name || '-'} | Dosage: ${m.dosage || '-'} | Frequency: ${m.frequency || '-'} | Duration: ${m.duration || '-'}`;
+                const rowLines = doc.splitTextToSize(row, 180);
+                if (y > 275) {
+                    doc.addPage();
+                    y = 16;
+                }
+                doc.text(rowLines, 14, y);
+                y += rowLines.length * 5 + 2;
+            });
+        }
+
+        doc.save(`${(title || 'record-summary').replace(/\s+/g, '-').toLowerCase()}-summary.pdf`);
+    };
 
     return (
         <div className="fade-in">
@@ -151,9 +216,12 @@ export default function RecordsPage() {
                                 <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e3a8a' }}>{file ? file.name : 'Click to attach PDF or Image (optional)'}</div>
                                 <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => setFile(e.target.files[0])} />
                             </div>
+                            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1rem' }}>
+                                OCR and summary extraction runs automatically on submit (PDF/image).
+                            </p>
 
                             <button className="btn btn-primary" type="submit" disabled={saving}>
-                                <UploadCloud size={16} /> {saving ? 'Uploading…' : 'Add Record'}
+                                <UploadCloud size={16} /> {saving ? 'Processing & Uploading…' : 'Add Record'}
                             </button>
                         </form>
                     )}
@@ -184,8 +252,11 @@ export default function RecordsPage() {
                             <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Max file size: 10MB</div>
                             <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => setFile(e.target.files[0])} />
                         </div>
+                        <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1rem' }}>
+                            OCR and summary extraction runs automatically on submit (PDF/image).
+                        </p>
                         <button className="btn btn-primary" type="submit" disabled={saving} style={{ padding: '0.85rem 2rem', fontSize: '1rem' }}>
-                            {saving ? 'Uploading...' : 'Submit Document'}
+                            {saving ? 'Processing & Uploading...' : 'Submit Document'}
                         </button>
                     </form>
                 </div>
@@ -197,6 +268,7 @@ export default function RecordsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
                     {records.map(rec => {
                         const patientName = getPatientName(rec);
+                        const medicines = getMedicineRows(rec);
                         return (
                             <div key={rec._id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
                                 {isDoctor && patientName && (
@@ -219,6 +291,35 @@ export default function RecordsPage() {
                                 <p style={{ fontSize: '0.9rem', color: '#475569', lineHeight: 1.5, flex: 1, marginBottom: '1.5rem' }}>
                                     {rec.description || 'No description provided.'}
                                 </p>
+                                {(rec.ocrSummary || medicines.length > 0) && (
+                                    <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
+                                        {rec.ocrSummary && (
+                                            <>
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.4rem', letterSpacing: '.05em' }}>
+                                                    Extracted Summary
+                                                </div>
+                                                <p style={{ fontSize: '0.85rem', color: '#0f172a', marginBottom: medicines.length ? '0.75rem' : 0 }}>
+                                                    {rec.ocrSummary}
+                                                </p>
+                                            </>
+                                        )}
+                                        {medicines.length > 0 && (
+                                            <>
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.35rem', letterSpacing: '.05em' }}>
+                                                    Medicine Key Map
+                                                </div>
+                                                {medicines.slice(0, 4).map((m, idx) => (
+                                                    <div key={idx} style={{ fontSize: '0.82rem', color: '#0f172a', marginBottom: '0.2rem' }}>
+                                                        • <strong>{m.name || '-'}</strong>
+                                                        {m.dosage ? ` | ${m.dosage}` : ''}
+                                                        {m.frequency ? ` | ${m.frequency}` : ''}
+                                                        {m.duration ? ` | ${m.duration}` : ''}
+                                                    </div>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                                 {rec.diagnosisHistory?.length > 0 && (
                                     <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
                                         <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem', letterSpacing: '.05em' }}>Diagnoses attached</div>
@@ -234,6 +335,16 @@ export default function RecordsPage() {
                                         <a href={`${BASE_URL}${rec.fileUrl}`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ flex: 1, background: '#f1f5f9', color: '#0f172a' }}>
                                             <ExternalLink size={16} /> View
                                         </a>
+                                    )}
+                                    {(rec.ocrSummary || medicines.length > 0) && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={() => downloadSummaryPdf(rec)}
+                                            style={{ background: '#eef2ff', color: '#3730a3' }}
+                                        >
+                                            <FileText size={16} /> PDF
+                                        </button>
                                     )}
                                     <button className="btn btn-ghost" onClick={() => handleDelete(rec._id)} style={{ color: '#ef4444' }}>
                                         <Trash2 size={16} />

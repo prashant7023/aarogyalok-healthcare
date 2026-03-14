@@ -7,6 +7,16 @@ const healthRecordSchema = new mongoose.Schema(
         description: { type: String },
         fileUrl: { type: String },
         fileType: { type: String },
+        ocrText: { type: String },
+        ocrSummary: { type: String },
+        medicineMap: [
+            {
+                name: { type: String },
+                dosage: { type: String },
+                frequency: { type: String },
+                duration: { type: String },
+            },
+        ],
         prescriptions: [{ type: String }],
         diagnosisHistory: [
             { date: { type: Date, default: Date.now }, diagnosis: { type: String }, doctor: { type: String } },
