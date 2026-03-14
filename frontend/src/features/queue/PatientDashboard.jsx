@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, DollarSign, MapPin, Users, Filter, BookOpen, RefreshCw, Stethoscope } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, Users, Filter, BookOpen, RefreshCw, Stethoscope, Navigation } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../shared/utils/api';
 
@@ -57,6 +57,10 @@ export default function PatientDashboard() {
                     <button onClick={fetchAppointments} disabled={loading}
                         style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', background: '#fff', color: '#616161', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px', border: '1px solid #e1e3e5' }}>
                         <RefreshCw size={13} /> Refresh
+                    </button>
+                    <button onClick={() => navigate('/queue/map-search')}
+                        style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid #dbeafe', background: '#ebf4ff', color: '#005bd3', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Navigation size={13} /> Find Nearby Doctors on Map
                     </button>
                     <button onClick={() => navigate('/queue/my-appointments')}
                         style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none', background: '#005bd3', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>

@@ -8,6 +8,7 @@ import AppointmentDetails from './features/queue/AppointmentDetails';
 import MyAppointments from './features/queue/MyAppointments';
 import BookAppointment from './features/queue/BookAppointment';
 import CreateAppointment from './features/queue/CreateAppointment';
+import QueueMapSearch from './features/queue/QueueMapSearch';
 import RecordsPage from './features/records/RecordsPage';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="queue" element={<QueuePage />} />
           <Route path="queue/appointments/:appointmentId" element={<AppointmentDetails />} />
           <Route path="queue/my-appointments" element={<MyAppointments />} />
+          <Route path="queue/map-search" element={<QueueMapSearch />} />
           <Route path="queue/book" element={<BookAppointment />} />
           <Route path="queue/create-appointment" element={<CreateAppointment />} />
           <Route path="records" element={<RecordsPage />} />

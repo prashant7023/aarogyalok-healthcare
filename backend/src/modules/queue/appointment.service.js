@@ -6,6 +6,11 @@ const { AppError } = require('../../shared/middleware/error.middleware');
 
 const ACTIVE_QUEUE_BOOKING_STATUS = 'confirmed';
 
+const toNumberOrNull = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
 const asDayRange = (value) => {
     const start = new Date(value);
     start.setHours(0, 0, 0, 0);
@@ -144,7 +149,9 @@ const createAppointment = async (doctorId, appointmentData, creatorName) => {
         consultationDurationMinutes,
         scheduleStartTime,
         price,
-        address
+        address,
+        locationLatitude,
+        locationLongitude
     } = appointmentData;
 
     if (!consultationDurationMinutes) {
@@ -154,6 +161,21 @@ const createAppointment = async (doctorId, appointmentData, creatorName) => {
     const doctor = await Doctor.findById(doctorId).select('name');
     const fallbackDoctor = !doctor?.name ? await Patient.findById(doctorId).select('name role') : null;
     const resolvedDoctorName = doctor?.name || fallbackDoctor?.name || creatorName || null;
+
+    const latitude = toNumberOrNull(locationLatitude);
+    const longitude = toNumberOrNull(locationLongitude);
+    const location =
+        latitude !== null &&
+        longitude !== null &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180
+            ? {
+                type: 'Point',
+                coordinates: [longitude, latitude],
+            }
+            : undefined;
 
     const appointment = await Appointment.create({
         doctorId,
@@ -165,6 +187,7 @@ const createAppointment = async (doctorId, appointmentData, creatorName) => {
         scheduleStartTime: scheduleStartTime || '09:00',
         price,
         address,
+        location,
         totalTokensIssued: 0,
         currentTokenNumber: null,
     });
@@ -315,6 +338,69 @@ const getAllAppointments = async (filters = {}) => {
 
     await resolveAppointmentsDoctorNames(appointments);
     return appointments;
+};
+
+const getNearbyAppointments = async (filters = {}) => {
+    const latitude = toNumberOrNull(filters.latitude);
+    const longitude = toNumberOrNull(filters.longitude);
+    const distanceKm = toNumberOrNull(filters.distanceKm) || 5;
+
+    if (latitude === null || longitude === null) {
+        throw new AppError('Latitude and longitude are required for nearby search', 400);
+    }
+
+    if (distanceKm <= 0) {
+        throw new AppError('Distance must be greater than 0', 400);
+    }
+
+    const geoQuery = {
+        status: 'active',
+        'location.coordinates.0': { $exists: true },
+        'location.coordinates.1': { $exists: true },
+    };
+
+    if (filters.specialization) {
+        geoQuery.specialization = filters.specialization;
+    }
+
+    if (filters.fromDate) {
+        geoQuery.appointmentDate = { $gte: new Date(filters.fromDate) };
+    }
+
+    if (filters.date) {
+        geoQuery.appointmentDate = asDayRange(filters.date);
+    }
+
+    const maxDistance = distanceKm * 1000;
+
+    const nearbyAppointments = await Appointment.aggregate([
+        {
+            $geoNear: {
+                near: {
+                    type: 'Point',
+                    coordinates: [longitude, latitude],
+                },
+                distanceField: 'distanceMeters',
+                spherical: true,
+                maxDistance,
+                query: geoQuery,
+            },
+        },
+        {
+            $sort: {
+                distanceMeters: 1,
+                appointmentDate: 1,
+                createdAt: -1,
+            },
+        },
+    ]);
+
+    const mapped = nearbyAppointments.map((appointment) => ({
+        ...appointment,
+        distanceKm: Number((appointment.distanceMeters / 1000).toFixed(2)),
+    }));
+
+    return mapped;
 };
 
 // Get appointment queue details
@@ -512,6 +598,7 @@ module.exports = {
     
     // Patient services
     getAllAppointments,
+    getNearbyAppointments,
     getAppointmentWithSlots,
     bookSlot,
     getPatientBookings,

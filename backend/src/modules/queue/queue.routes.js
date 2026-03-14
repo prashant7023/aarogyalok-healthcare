@@ -31,6 +31,9 @@ router.post('/doctor/appointments/:appointmentId/offline-bookings', protect, app
 // Browse all appointments
 router.get('/appointments', appointmentController.getAllAppointments);
 
+// Browse nearby appointments by map location
+router.get('/appointments/nearby', appointmentController.getNearbyAppointments);
+
 // Get specific appointment with queue summary
 router.get('/appointments/:appointmentId', appointmentController.getAppointmentWithSlots);
 

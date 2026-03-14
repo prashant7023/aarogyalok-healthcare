@@ -46,6 +46,17 @@ const appointmentSchema = new mongoose.Schema(
             required: true,
             trim: true 
         },
+        location: {
+            type: {
+                type: String,
+                enum: ['Point'],
+                default: 'Point',
+            },
+            coordinates: {
+                type: [Number],
+                default: undefined,
+            },
+        },
         status: { 
             type: String, 
             enum: ['active', 'completed', 'cancelled'], 
@@ -61,5 +72,6 @@ const appointmentSchema = new mongoose.Schema(
 appointmentSchema.index({ doctorId: 1, appointmentDate: 1 });
 appointmentSchema.index({ appointmentDate: 1, status: 1 });
 appointmentSchema.index({ specialization: 1 });
+appointmentSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Appointment', appointmentSchema);
