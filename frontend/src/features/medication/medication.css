@@ -1,0 +1,45 @@
+.med-page {
+  width: 100%;
+}
+
+.med-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.med-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.med-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 0.85rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.med-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-mid);
+  background: #fff;
+  border-radius: 12px;
+  border: 1px dashed var(--border-strong);
+}
+
+@media (max-width: 768px) {
+  .med-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

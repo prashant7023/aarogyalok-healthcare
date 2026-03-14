@@ -3,7 +3,7 @@ import AppLayout from './shared/components/AppLayout';
 import Dashboard from './features/dashboard/DashboardPage';
 import SymptomPage from './features/symptom/SymptomPage';
 import MedicationPage from './features/medication/MedicationPage';
-import QueuePage from './features/queue/QueuePageNew';
+import QueuePage from './features/queue/QueuePage';
 import AppointmentDetails from './features/queue/AppointmentDetails';
 import MyAppointments from './features/queue/MyAppointments';
 import BookAppointment from './features/queue/BookAppointment';

@@ -25,45 +25,44 @@ export default function LoginPage() {
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-            <div style={{ width: '100%', maxWidth: '420px' }}>
-                {/* Logo */}
-                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}><Activity size={48} color="#fff" strokeWidth={2} /></div>
-                    <h1 style={{ color: '#fff', fontSize: '1.8rem', marginBottom: '0.25rem' }}>AarogyaLok</h1>
-                    <p style={{ color: 'rgba(255,255,255,.5)', fontSize: '0.9rem' }}>Smart Healthcare Platform</p>
+        <div className="auth-page fade-in">
+            <div className="auth-shell">
+                <div className="auth-brand">
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.45rem' }}>
+                        <Activity size={28} color="#005bd3" strokeWidth={2.3} />
+                    </div>
+                    <h1 style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>AarogyaLok</h1>
+                    <p style={{ fontSize: '0.88rem', color: '#616161' }}>Healthcare Operations Platform</p>
                 </div>
 
-                <div className="card" style={{ background: 'rgba(255,255,255,.05)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,.1)' }}>
-                    <h2 style={{ color: '#fff', marginBottom: '1.5rem', fontWeight: 700 }}>Welcome back</h2>
+                <div className="auth-card">
+                    <h2 style={{ marginBottom: '1rem', fontWeight: 700, fontSize: '1.2rem' }}>Sign in</h2>
 
                     {error && (
-                        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                            ⚠️ {error}
+                        <div style={{ background: '#fff1f4', color: '#a32043', padding: '0.7rem 0.85rem', borderRadius: '8px', marginBottom: '0.9rem', fontSize: '0.84rem', border: '1px solid #ffd3df' }}>
+                            {error}
                         </div>
                     )}
 
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
-                            <label style={{ color: 'rgba(255,255,255,.7)' }}>Email</label>
+                            <label>Email</label>
                             <input
                                 className="input"
                                 type="email"
                                 placeholder="you@example.com"
                                 value={form.email}
                                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                                style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: '#fff' }}
                             />
                         </div>
                         <div className="form-group">
-                            <label style={{ color: 'rgba(255,255,255,.7)' }}>Password</label>
+                            <label>Password</label>
                             <input
                                 className="input"
                                 type="password"
                                 placeholder="••••••••"
                                 value={form.password}
                                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                                style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: '#fff' }}
                             />
                         </div>
                         <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }}>
@@ -71,8 +70,8 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    <p style={{ textAlign: 'center', marginTop: '1.25rem', color: 'rgba(255,255,255,.45)', fontSize: '0.875rem' }}>
-                        Don't have an account? <Link to="/register" style={{ color: '#60a5fa', fontWeight: 600, textDecoration: 'none' }}>Register</Link>
+                    <p style={{ textAlign: 'center', marginTop: '1rem', color: '#616161', fontSize: '0.85rem' }}>
+                        New here? <Link to="/register" style={{ color: '#005bd3', fontWeight: 700, textDecoration: 'none' }}>Create account</Link>
                     </p>
                 </div>
             </div>

@@ -55,11 +55,11 @@ export default function PatientDashboard() {
                 <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>Available Appointments</h1>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={fetchAppointments} disabled={loading}
-                        style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none', background: '#f8fafc', color: '#64748b', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px', border: '1px solid #e2e8f0' }}>
+                        style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', background: '#fff', color: '#616161', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px', border: '1px solid #e1e3e5' }}>
                         <RefreshCw size={13} /> Refresh
                     </button>
                     <button onClick={() => navigate('/queue/my-appointments')}
-                        style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        style={{ padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none', background: '#005bd3', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <BookOpen size={13} /> My Appointments
                     </button>
                 </div>
@@ -68,27 +68,28 @@ export default function PatientDashboard() {
             {/* Stats Banner */}
             <div style={{
                 display: 'flex', alignItems: 'center', gap: '1rem',
-                background: 'linear-gradient(135deg,#0f172a,#1e3a5f)',
+                background: '#fff',
+                border: '1px solid #e1e3e5',
                 borderRadius: '12px', padding: '0.85rem 1.25rem',
                 marginBottom: '1rem', flexWrap: 'wrap'
             }}>
                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', flex: 1 }}>
                     <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Appointments</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{stats.total}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '.05em' }}>Appointments</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#303030', lineHeight: 1 }}>{stats.total}</div>
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Specializations</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#60a5fa', lineHeight: 1 }}>{stats.specializations}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '.05em' }}>Specializations</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#005bd3', lineHeight: 1 }}>{stats.specializations}</div>
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Issued Tokens</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{stats.totalIssuedTokens}</div>
+                        <div style={{ fontSize: '0.65rem', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '.05em' }}>Issued Tokens</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#008060', lineHeight: 1 }}>{stats.totalIssuedTokens}</div>
                     </div>
                 </div>
-                <div style={{ padding: '0.5rem 0.85rem', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Stethoscope size={16} color="#60a5fa" />
-                    <span style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600 }}>Find Doctor</span>
+                <div style={{ padding: '0.5rem 0.85rem', background: '#ebf4ff', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Stethoscope size={16} color="#005bd3" />
+                    <span style={{ fontSize: '0.75rem', color: '#0048a8', fontWeight: 700 }}>Find Doctor</span>
                 </div>
             </div>
 
@@ -169,8 +170,10 @@ export default function PatientDashboard() {
                             </h2>
                             <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                                 {apts.map((apt, idx) => {
+                                    const isBookable = apt.status === 'active';
+
                                     return (
-                                        <div 
+                                        <div
                                             key={apt._id}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
@@ -182,24 +185,22 @@ export default function PatientDashboard() {
                                             onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
                                             onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                         >
-                                            {/* Doctor avatar */}
                                             <div style={{
                                                 width: 44,
                                                 height: 44,
                                                 borderRadius: '50%',
-                                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                background: '#ebf4ff',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
                                                 fontWeight: 700,
                                                 fontSize: '1.1rem',
-                                                color: 'white',
+                                                color: '#005bd3',
                                                 flexShrink: 0
                                             }}>
                                                 {apt.doctorId?.name?.charAt(0) || apt.doctorName?.charAt(0) || 'D'}
                                             </div>
 
-                                            {/* Main content */}
                                             <div style={{ flex: 1, minWidth: 200 }}>
                                                 <div style={{ marginBottom: '0.35rem' }}>
                                                     <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.15rem' }}>
@@ -213,7 +214,6 @@ export default function PatientDashboard() {
                                                     </div>
                                                 </div>
 
-                                                {/* Details row */}
                                                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.75rem', color: '#64748b' }}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <DollarSign size={12} color="#94a3b8" />
@@ -238,33 +238,38 @@ export default function PatientDashboard() {
                                                 </div>
                                             </div>
 
-                                            {/* Book button */}
-                                            <button 
+                                            <button
                                                 onClick={() => handleBookSlot(apt)}
+                                                disabled={!isBookable}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '5px',
                                                     padding: '0.5rem 1rem',
-                                                    background: '#3b82f6',
-                                                    color: '#fff',
-                                                    border: 'none',
+                                                    background: isBookable ? '#005bd3' : '#f1f2f3',
+                                                    color: isBookable ? '#fff' : '#8a8a8a',
+                                                    border: '1px solid transparent',
                                                     borderRadius: '6px',
                                                     fontSize: '0.8rem',
                                                     fontWeight: 600,
-                                                    cursor: 'pointer',
+                                                    cursor: isBookable ? 'pointer' : 'not-allowed',
                                                     flexShrink: 0,
-                                                    transition: 'all 0.15s'
+                                                    transition: 'all 0.15s',
+                                                    opacity: isBookable ? 1 : 0.8
                                                 }}
                                                 onMouseEnter={(e) => {
-                                                    e.target.style.background = '#2563eb';
+                                                    if (isBookable) {
+                                                        e.target.style.background = '#0047a5';
+                                                    }
                                                 }}
                                                 onMouseLeave={(e) => {
-                                                    e.target.style.background = '#3b82f6';
+                                                    if (isBookable) {
+                                                        e.target.style.background = '#005bd3';
+                                                    }
                                                 }}
                                             >
                                                 <Users size={13} />
-                                                Book Token
+                                                {isBookable ? 'Book Token' : 'Unavailable'}
                                             </button>
                                         </div>
                                     );
