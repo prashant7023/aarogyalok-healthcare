@@ -5,7 +5,7 @@ import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronR
 const NAV = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', section: 'OVERVIEW', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
     { to: '/symptom', icon: Activity, label: 'Symptom Checker', section: 'PATIENT', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
-    { to: '/medication', icon: Pill, label: 'Medication', section: 'PATIENT', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
+    { to: '/medication', icon: Pill, label: 'Medication', section: 'PATIENT', roles: ['patient', 'user', 'admin', 'hospital'] },
     { to: '/queue', icon: Users, label: 'Queue', section: 'CLINICAL', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
     { to: '/queue/patient-crm', icon: TableProperties, label: 'Patient CRM', section: 'CLINICAL', roles: ['doctor'] },
     { to: '/records', icon: FileText, label: 'Health Records', section: 'CLINICAL', roles: ['patient', 'user', 'doctor', 'admin', 'hospital'] },
