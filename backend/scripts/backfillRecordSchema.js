@@ -1,18 +1,26 @@
-const HealthRecord = require('./record.model');
+/* eslint-disable no-console */
+require('dotenv').config();
 const fs = require('fs/promises');
+const path = require('path');
+const mongoose = require('mongoose');
 const pdfParse = require('pdf-parse');
-const { extractMedicalDataFromText, normalizeMedicineMap } = require('../../config/grok');
-const medicationService = require('../medication/services/medication.service');
-const Medication = require('../medication/models/medication.model');
+
+const HealthRecord = require('../src/modules/records/record.model');
+const { extractMedicalDataFromText, normalizeMedicineMap } = require('../src/config/grok');
+const medicationService = require('../src/modules/medication/services/medication.service');
+const Medication = require('../src/modules/medication/models/medication.model');
+
+const FORCE = process.argv.includes('--force');
+const SYNC_MEDICATIONS = process.argv.includes('--sync-medications');
 
 const summarizeText = (text = '') => {
     const clean = String(text).replace(/\s+/g, ' ').trim();
     if (!clean) return '';
-    const sentences = clean
+    return clean
         .split(/(?<=[.!?])\s+/)
         .filter(Boolean)
-        .slice(0, 4);
-    return sentences.join(' ');
+        .slice(0, 4)
+        .join(' ');
 };
 
 const extractMedicineMap = (text = '') => {
@@ -52,36 +60,9 @@ const extractMedicineMap = (text = '') => {
     });
 };
 
-const parseMedicineMap = (incomingMap, fallbackText, aiMap = []) => {
-    const normalizedAiMap = normalizeMedicineMap(aiMap);
-    if (Array.isArray(incomingMap)) return normalizeMedicineMap(incomingMap);
-    if (typeof incomingMap === 'string' && incomingMap.trim()) {
-        try {
-            const parsed = JSON.parse(incomingMap);
-            if (Array.isArray(parsed)) return normalizeMedicineMap(parsed);
-        } catch (_error) {
-            // ignore invalid client payload and use fallback extraction
-        }
-    }
-    if (normalizedAiMap.length) return normalizedAiMap;
-    return extractMedicineMap(fallbackText);
-};
-
-const getPdfText = async (uploadedFile) => {
-    if (!uploadedFile?.mimetype?.includes('pdf') || !uploadedFile?.path) return '';
-    try {
-        const fileBuffer = await fs.readFile(uploadedFile.path);
-        const parsed = await pdfParse(fileBuffer);
-        return (parsed?.text || '').trim();
-    } catch (_error) {
-        return '';
-    }
-};
-
 const parseDurationDays = (duration = '') => {
     const raw = String(duration || '').trim().toLowerCase();
     if (!raw) return null;
-
     const match = raw.match(/(\d+)\s*(d|day|days|w|week|weeks|m|month|months)?/i);
     if (!match) return null;
 
@@ -95,7 +76,7 @@ const parseDurationDays = (duration = '') => {
     return value;
 };
 
-const inferDurationForMedicines = (medicineMap = []) => {
+const enforceDurationInMedicineMap = (medicineMap = []) => {
     return medicineMap.map((m) => {
         const days = parseDurationDays(m?.duration);
         return {
@@ -119,7 +100,7 @@ const frequencyToScheduleTimes = (frequency = '') => {
     return ['09:00'];
 };
 
-const createMedicationRemindersFromMap = async (userId, medicineMap = []) => {
+const syncMedicationsForRecord = async (recordUserId, medicineMap = []) => {
     const startDate = new Date();
 
     for (const med of medicineMap) {
@@ -127,7 +108,7 @@ const createMedicationRemindersFromMap = async (userId, medicineMap = []) => {
         if (!durationDays) continue;
 
         const existingActive = await Medication.findOne({
-            userId,
+            userId: recordUserId,
             isActive: true,
             medicineName: med.name,
             dosage: med.dosage || '',
@@ -138,7 +119,7 @@ const createMedicationRemindersFromMap = async (userId, medicineMap = []) => {
         const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + durationDays);
 
-        await medicationService.createMedication(userId, {
+        await medicationService.createMedication(recordUserId, {
             medicineName: med.name,
             dosage: med.dosage || '',
             scheduleTimes: frequencyToScheduleTimes(med.frequency),
@@ -148,52 +129,81 @@ const createMedicationRemindersFromMap = async (userId, medicineMap = []) => {
     }
 };
 
-const createRecord = async (userId, data, fileUrl, uploadedFile) => {
-    const pdfText = await getPdfText(uploadedFile);
-    const ocrText = (data.ocrText || data.extractedText || pdfText || '').trim();
-    const sourceTextForSummary = ocrText || String(data.description || '').trim() || String(data.title || '').trim();
-    const aiExtraction = await extractMedicalDataFromText(sourceTextForSummary);
-    const ocrSummary =
-        (data.ocrSummary || data.extractedSummary || aiExtraction.summary || summarizeText(sourceTextForSummary)).trim();
-    const sourceTextForMedicines = ocrText || String(data.description || '').trim();
-    const parsedMedicineMap = parseMedicineMap(
-        data.medicineMap,
-        sourceTextForMedicines,
-        aiExtraction.medicineMap
-    );
-    const medicineMap = inferDurationForMedicines(parsedMedicineMap);
+const parsePdfText = async (record) => {
+    if ((record.fileType || '').toLowerCase() !== 'pdf' || !record.fileUrl) return '';
+    const relative = record.fileUrl.replace(/^\/uploads\//, '');
+    if (!relative || relative === record.fileUrl) return '';
 
-    const record = await HealthRecord.create({
-        userId,
-        ...data,
-        ocrText,
-        ocrSummary,
-        medicineMap,
-        fileUrl,
-    });
+    const fullPath = path.join(__dirname, '../uploads', relative);
+    try {
+        const buffer = await fs.readFile(fullPath);
+        const parsed = await pdfParse(buffer);
+        return (parsed?.text || '').trim();
+    } catch (_error) {
+        return '';
+    }
+};
 
-    if (medicineMap.length) {
-        await createMedicationRemindersFromMap(userId, medicineMap);
+const run = async () => {
+    await mongoose.connect(process.env.MONGO_URI);
+
+    const records = await HealthRecord.find({});
+    let updated = 0;
+
+    for (const rec of records) {
+        const currentText = (rec.ocrText || '').trim();
+        const pdfText = currentText ? '' : await parsePdfText(rec);
+        const ocrText = currentText || pdfText;
+
+        const sourceForSummary = ocrText || (rec.description || '').trim() || (rec.title || '').trim();
+        const aiExtraction = await extractMedicalDataFromText(sourceForSummary);
+        const ocrSummary = (
+            (FORCE ? '' : rec.ocrSummary) ||
+            aiExtraction.summary ||
+            summarizeText(sourceForSummary) ||
+            ''
+        ).trim();
+
+        const currentMap = Array.isArray(rec.medicineMap) ? rec.medicineMap : [];
+        const hasStrongCurrentMap = currentMap.some((m) => m?.dosage || m?.frequency || m?.duration);
+        const parsedMap = extractMedicineMap(ocrText || rec.description || '');
+        const aiMap = normalizeMedicineMap(aiExtraction.medicineMap);
+                const medicineMapRaw = FORCE
+            ? aiMap.length
+                ? aiMap
+                : parsedMap
+            : hasStrongCurrentMap
+              ? currentMap
+              : aiMap.length
+                ? aiMap
+                : parsedMap;
+                const medicineMap = enforceDurationInMedicineMap(medicineMapRaw);
+
+        const dirty =
+            (rec.ocrText || '') !== ocrText ||
+            (rec.ocrSummary || '') !== ocrSummary ||
+            JSON.stringify(currentMap) !== JSON.stringify(medicineMap);
+
+        if (!dirty) continue;
+
+        rec.ocrText = ocrText;
+        rec.ocrSummary = ocrSummary;
+        rec.medicineMap = medicineMap;
+        await rec.save();
+
+        if (SYNC_MEDICATIONS && medicineMap.length) {
+            await syncMedicationsForRecord(rec.userId, medicineMap);
+        }
+
+        updated += 1;
     }
 
-    return record;
+    console.log(`Backfill complete. Updated records: ${updated}/${records.length}`);
+    await mongoose.disconnect();
 };
 
-// Patients: own records only
-const getRecords = async (userId) => HealthRecord.find({ userId }).sort({ createdAt: -1 });
-
-// Doctors / hospital / admin: all records with patient info populated
-const getAllRecords = async () =>
-    HealthRecord.find().populate('userId', 'name email').sort({ createdAt: -1 });
-
-const getRecordById = async (id, userId, isPrivileged) => {
-    if (isPrivileged) return HealthRecord.findById(id).populate('userId', 'name email');
-    return HealthRecord.findOne({ _id: id, userId });
-};
-
-const deleteRecord = async (id, userId, isPrivileged) => {
-    if (isPrivileged) return HealthRecord.findByIdAndDelete(id);
-    return HealthRecord.findOneAndDelete({ _id: id, userId });
-};
-
-module.exports = { createRecord, getAllRecords, getRecords, getRecordById, deleteRecord };
+run().catch(async (err) => {
+    console.error('Backfill failed:', err.message);
+    if (mongoose.connection.readyState) await mongoose.disconnect();
+    process.exit(1);
+});
