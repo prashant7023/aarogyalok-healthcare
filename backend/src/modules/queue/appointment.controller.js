@@ -71,6 +71,20 @@ const getAllAppointments = asyncHandler(async (req, res) => {
     sendSuccess(res, appointments, 'Appointments fetched successfully');
 });
 
+const getNearbyAppointments = asyncHandler(async (req, res) => {
+    const filters = {
+        specialization: req.query.specialization,
+        fromDate: req.query.fromDate,
+        date: req.query.date,
+        latitude: req.query.latitude,
+        longitude: req.query.longitude,
+        distanceKm: req.query.distanceKm,
+    };
+
+    const appointments = await appointmentService.getNearbyAppointments(filters);
+    sendSuccess(res, appointments, 'Nearby appointments fetched successfully');
+});
+
 // Get appointment with slots
 const getAppointmentWithSlots = asyncHandler(async (req, res) => {
     const appointment = await appointmentService.getAppointmentWithSlots(
@@ -143,6 +157,7 @@ module.exports = {
     
     // Patient
     getAllAppointments,
+    getNearbyAppointments,
     getAppointmentWithSlots,
     bookSlot,
     getPatientBookings,

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, DollarSign, MapPin, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, Plus, DollarSign, MapPin, ArrowLeft, Navigation } from 'lucide-react';
 import api from '../../shared/utils/api';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
+import MapboxLocationPicker from './MapboxLocationPicker';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 export default function CreateAppointment() {
     const navigate = useNavigate();
@@ -18,12 +21,60 @@ export default function CreateAppointment() {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [locatingCurrent, setLocatingCurrent] = useState(false);
 
     useEffect(() => {
         if (!formData.consultationDurationMinutes) {
             setFormData((prev) => ({ ...prev, consultationDurationMinutes: '10' }));
         }
     }, [formData.consultationDurationMinutes]);
+
+    const resolveAddressFromCoordinates = async (longitude, latitude) => {
+        try {
+            const response = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${MAPBOX_TOKEN}&limit=1`
+            );
+            const data = await response.json();
+            return data?.features?.[0]?.place_name || '';
+        } catch {
+            return '';
+        }
+    };
+
+    const handleUseCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported in this browser.');
+            return;
+        }
+
+        setLocatingCurrent(true);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                const address = await resolveAddressFromCoordinates(longitude, latitude);
+
+                const picked = {
+                    latitude,
+                    longitude,
+                    address: address || formData.address || 'Current location',
+                };
+
+                setSelectedLocation(picked);
+                if (address) {
+                    setFormData((prev) => ({ ...prev, address }));
+                }
+                setLocatingCurrent(false);
+            },
+            () => {
+                setLocatingCurrent(false);
+                alert('Unable to fetch your current location.');
+            },
+            { enableHighAccuracy: true, timeout: 12000 }
+        );
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -39,7 +90,9 @@ export default function CreateAppointment() {
                 price: parseInt(formData.price),
                 address: formData.address,
                 scheduleStartTime: formData.scheduleStartTime,
-                consultationDurationMinutes: parseInt(formData.consultationDurationMinutes)
+                consultationDurationMinutes: parseInt(formData.consultationDurationMinutes),
+                locationLatitude: selectedLocation?.latitude,
+                locationLongitude: selectedLocation?.longitude,
             });
             alert('✅ Appointment created successfully!');
             navigate('/queue');
@@ -202,6 +255,57 @@ export default function CreateAppointment() {
                                 required
                                 style={{ width: '100%', padding: '0.75rem', fontSize: '0.95rem', resize: 'vertical' }}
                             />
+
+                            <div style={{ marginTop: '0.65rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleUseCurrentLocation}
+                                    style={{
+                                        border: '1px solid #dbeafe',
+                                        background: '#ebf4ff',
+                                        color: '#005bd3',
+                                        borderRadius: '8px',
+                                        padding: '0.45rem 0.7rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        fontSize: '0.78rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                    }}
+                                >
+                                    <Navigation size={13} /> {locatingCurrent ? 'Locating...' : 'Use Current Location'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLocationPickerOpen(true)}
+                                    style={{
+                                        border: '1px solid #e1e3e5',
+                                        background: '#fff',
+                                        color: '#303030',
+                                        borderRadius: '8px',
+                                        padding: '0.45rem 0.7rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        fontSize: '0.78rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                    }}
+                                >
+                                    <MapPin size={13} /> Choose Location on Map
+                                </button>
+                            </div>
+
+                            {selectedLocation && (
+                                <div style={{ marginTop: '0.6rem', background: '#f8fafc', border: '1px solid #e1e3e5', borderRadius: '8px', padding: '0.55rem 0.7rem', fontSize: '0.76rem', color: '#334155' }}>
+                                    <div style={{ fontWeight: 700, color: '#005bd3', marginBottom: '0.15rem' }}>Selected map location</div>
+                                    <div>{selectedLocation.address}</div>
+                                    <div style={{ color: '#64748b' }}>
+                                        Lat: {selectedLocation.latitude.toFixed(5)} | Lng: {selectedLocation.longitude.toFixed(5)}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -271,6 +375,21 @@ export default function CreateAppointment() {
                     </div>
                 </form>
             </div>
+
+            <MapboxLocationPicker
+                open={locationPickerOpen}
+                token={MAPBOX_TOKEN}
+                initialLocation={selectedLocation}
+                title="Pick Clinic / Hospital Location"
+                onClose={() => setLocationPickerOpen(false)}
+                onConfirm={(location) => {
+                    setSelectedLocation(location);
+                    if (location.address) {
+                        setFormData((prev) => ({ ...prev, address: location.address }));
+                    }
+                    setLocationPickerOpen(false);
+                }}
+            />
         </div>
     );
 }
