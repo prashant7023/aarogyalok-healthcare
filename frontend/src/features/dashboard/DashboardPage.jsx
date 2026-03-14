@@ -1,26 +1,164 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import useAuthStore from '../auth/authStore';
-import { Activity, Pill, Users, FileText, ArrowRight } from 'lucide-react';
+import { Activity, Pill, Users, FileText, Clock3, TrendingUp } from 'lucide-react';
+import api from '../../shared/utils/api';
 
-const FEATURE_CARDS = [
-    { to: '/symptom', icon: Activity, title: 'AI Symptom Checker', desc: 'Capture patient symptoms with structured triage and severity insights.', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/medication', icon: Pill, title: 'Medication Reminder', desc: 'Track active medicines, reminders, and adherence status in one place.', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/queue', icon: Users, title: 'Queue Management', desc: 'Manage appointments and token flow with real-time updates.', roles: ['patient', 'doctor', 'admin'] },
-    { to: '/records', icon: FileText, title: 'Health Records', desc: 'View longitudinal patient records and uploaded clinical documents.', roles: ['patient', 'doctor', 'admin'] },
-];
+const SEV_SCORE = { mild: 1, moderate: 2, severe: 3, critical: 3 };
+const toNum = (val, fallback = 0) => (Number.isFinite(Number(val)) ? Number(val) : fallback);
 
-const STATS = [
-    { label: 'Modules Live', value: '4' },
-    { label: 'Core Workflows', value: '12+' },
-    { label: 'Role Modes', value: '3' },
-    { label: 'System Status', value: 'Active' },
-];
+const getHighestSeverity = (reports = []) => {
+    const values = reports
+        .map((r) => r?.aiResult?.severity)
+        .filter(Boolean)
+        .map((s) => String(s).toLowerCase());
+
+    if (values.length === 0) return 'mild';
+
+    return values.reduce((max, s) => (SEV_SCORE[s] > SEV_SCORE[max] ? s : max), 'mild');
+};
 
 export default function DashboardPage() {
     const { user } = useAuthStore();
-    const role = user?.role || 'patient';
+    const role = String(user?.role || 'user').toLowerCase();
+    const isEndUserRole = role === 'patient' || role === 'user';
+    const isProviderRole = role === 'doctor' || role === 'admin' || role === 'hospital';
+    const [loading, setLoading] = useState(true);
+    const [analytics, setAnalytics] = useState({
+        symptomChecks: 0,
+        highestSeverity: 'mild',
+        medications: 0,
+        adherenceRate: 0,
+        records: 0,
+        queuePrimary: 0,
+        queueSecondary: 0,
+    });
+    const [error, setError] = useState('');
 
-    const visibleCards = FEATURE_CARDS.filter(c => c.roles.includes(role));
+    useEffect(() => {
+        let mounted = true;
+
+        const loadAnalytics = async () => {
+            setLoading(true);
+            setError('');
+            try {
+                const queueRequest = isEndUserRole
+                    ? api.get('/queue/my-bookings')
+                    : (isProviderRole ? api.get('/queue/doctor/appointments') : api.get('/queue/my-bookings'));
+
+                const [symptomsRes, medsRes, adherenceRes, recordsRes, queueRes] = await Promise.allSettled([
+                    api.get('/symptom/history'),
+                    api.get('/medication'),
+                    api.get('/medication/adherence?days=7'),
+                    api.get('/records'),
+                    queueRequest,
+                ]);
+
+                const symptomHistory = symptomsRes.status === 'fulfilled' ? (symptomsRes.value?.data?.data || []) : [];
+                const medications = medsRes.status === 'fulfilled' ? (medsRes.value?.data?.data || []) : [];
+                const adherence = adherenceRes.status === 'fulfilled' ? (adherenceRes.value?.data?.data || {}) : {};
+                const records = recordsRes.status === 'fulfilled' ? (recordsRes.value?.data?.data || []) : [];
+
+                let queuePrimary = 0;
+                let queueSecondary = 0;
+
+                if (queueRes.status === 'fulfilled') {
+                    const queueData = queueRes.value?.data?.data || [];
+                    if (isEndUserRole) {
+                        queuePrimary = queueData.filter((b) => b?.status === 'confirmed').length;
+                        queueSecondary = queueData.length;
+                    } else {
+                        queuePrimary = queueData.length;
+                        queueSecondary = queueData.reduce((sum, apt) => sum + toNum(apt?.totalTokensIssued), 0);
+                    }
+                }
+
+                if (!mounted) return;
+
+                setAnalytics({
+                    symptomChecks: symptomHistory.length,
+                    highestSeverity: getHighestSeverity(symptomHistory),
+                    medications: medications.length,
+                    adherenceRate: toNum(adherence?.adherenceRate),
+                    records: records.length,
+                    queuePrimary,
+                    queueSecondary,
+                });
+            } catch (_) {
+                if (!mounted) return;
+                setError('Could not load complete analytics. Some cards may show 0.');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+
+        loadAnalytics();
+        return () => { mounted = false; };
+    }, [isEndUserRole, isProviderRole]);
+
+    const cards = useMemo(() => {
+        const baseCards = [
+            {
+                label: 'Symptom Analyses',
+                value: analytics.symptomChecks,
+                hint: `Highest severity: ${analytics.highestSeverity}`,
+                icon: Activity,
+            },
+            {
+                label: 'Active Medications',
+                value: analytics.medications,
+                hint: 'Current medication plans',
+                icon: Pill,
+            },
+            {
+                label: 'Adherence (7 Days)',
+                value: `${analytics.adherenceRate}%`,
+                hint: 'Dose completion ratio',
+                icon: TrendingUp,
+            },
+            {
+                label: isEndUserRole ? 'My Health Records' : 'Patient Records',
+                value: analytics.records,
+                hint: 'Uploaded clinical documents',
+                icon: FileText,
+            },
+        ];
+
+        if (isEndUserRole) {
+            baseCards.push(
+                {
+                    label: 'Active Queue Tokens',
+                    value: analytics.queuePrimary,
+                    hint: 'Awaiting consultation',
+                    icon: Users,
+                },
+                {
+                    label: 'Total Bookings',
+                    value: analytics.queueSecondary,
+                    hint: 'All queue bookings',
+                    icon: Clock3,
+                }
+            );
+        } else {
+            baseCards.push(
+                {
+                    label: 'Appointments Managed',
+                    value: analytics.queuePrimary,
+                    hint: 'Doctor queue sessions',
+                    icon: Users,
+                },
+                {
+                    label: 'Tokens Issued',
+                    value: analytics.queueSecondary,
+                    hint: 'Across all appointments',
+                    icon: Clock3,
+                }
+            );
+        }
+
+        return baseCards;
+    }, [analytics, isEndUserRole]);
+
+    const roleLabel = isEndUserRole ? 'Patient/User' : (isProviderRole ? 'Doctor/Admin' : role);
 
     return (
         <div className="fade-in">
@@ -30,48 +168,41 @@ export default function DashboardPage() {
                     Welcome, {user?.name?.split(' ')[0] || 'User'}
                 </h1>
                 <p style={{ maxWidth: 680 }}>
-                    Unified healthcare operations across triage, medication adherence, appointment queueing, and clinical records.
+                    Dashboard now shows analytics only: symptom activity, medication adherence, queue progress, and records insights.
                 </p>
                 <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span className="badge badge-gray" style={{ textTransform: 'capitalize' }}>Role: {role}</span>
-                    <span className="badge badge-green">MVP Online</span>
+                    <span className="badge badge-gray">Role: {roleLabel}</span>
+                    <span className="badge badge-green">Analytics Mode</span>
                 </div>
             </div>
 
-            <div className="stats-grid" style={{ marginBottom: '2.5rem' }}>
-                {STATS.map(s => {
+            {error && (
+                <div className="form-error" style={{ marginBottom: '0.8rem' }}>
+                    {error}
+                </div>
+            )}
+
+            <div className="stats-grid" style={{ marginBottom: '1rem' }}>
+                {cards.map((s) => {
+                    const Icon = s.icon;
                     return (
                         <div className="stat-card" key={s.label}>
-                            <div className="stat-label">{s.label}</div>
-                            <div className="stat-value">{s.value}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                                <div className="stat-label">{s.label}</div>
+                                <Icon size={15} color="var(--text-light)" />
+                            </div>
+                            <div className="stat-value">{loading ? '...' : s.value}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginTop: '0.25rem' }}>{s.hint}</div>
                         </div>
                     );
                 })}
             </div>
 
-            <h2 style={{ marginBottom: '0.8rem' }}>Modules</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.8rem' }}>
-                {visibleCards.map(card => {
-                    const Icon = card.icon;
-                    return (
-                        <Link to={card.to} key={card.to} style={{ textDecoration: 'none' }}>
-                            <div className="card" style={{ height: '100%', transition: 'all .15s ease', cursor: 'pointer', padding: '1rem 1.1rem' }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9cccf'; }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e1e3e5'; }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-                                    <h3 style={{ color: 'var(--text-dark)', fontSize: '1rem' }}>{card.title}</h3>
-                                    <Icon size={16} color="#616161" strokeWidth={2.2} />
-                                </div>
-                                <p style={{ fontSize: '0.87rem', lineHeight: 1.45, color: 'var(--text-mid)' }}>{card.desc}</p>
-
-                                <div style={{ marginTop: '0.9rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    Open {card.title} <ArrowRight size={14} />
-                                </div>
-                            </div>
-                        </Link>
-                    );
-                })}
+            <div className="card" style={{ padding: '1rem 1.1rem' }}>
+                <h3 style={{ fontSize: '0.98rem', marginBottom: '0.35rem' }}>Analytics Notes</h3>
+                <p style={{ fontSize: '0.86rem' }}>
+                    These numbers are calculated from live feature data. Use side navigation for operations and this dashboard for monitoring trends.
+                </p>
             </div>
         </div>
     );
