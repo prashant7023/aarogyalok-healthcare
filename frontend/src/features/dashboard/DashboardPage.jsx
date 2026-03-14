@@ -571,6 +571,34 @@ export default function DashboardPage() {
         };
     }, [analytics, reportData.queueData]);
 
+    const patientConsultationBars = useMemo(() => {
+        const consultations = Array.isArray(patientReport?.consultations) ? patientReport.consultations : [];
+        if (!consultations.length) return [];
+
+        const now = new Date();
+        const monthBuckets = [];
+        for (let i = 5; i >= 0; i -= 1) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            monthBuckets.push({
+                key: `${d.getFullYear()}-${d.getMonth()}`,
+                label: d.toLocaleDateString('en-IN', { month: 'short' }),
+                value: 0,
+            });
+        }
+
+        const bucketMap = new Map(monthBuckets.map((b) => [b.key, b]));
+
+        consultations.forEach((c) => {
+            const when = new Date(c?.consultationDate || c?.appointmentDate || c?.updatedAt || c?.createdAt || 0);
+            if (Number.isNaN(when.getTime())) return;
+            const key = `${when.getFullYear()}-${when.getMonth()}`;
+            const bucket = bucketMap.get(key);
+            if (bucket) bucket.value += 1;
+        });
+
+        return monthBuckets;
+    }, [patientReport]);
+
     const fetchPatientFullReport = async (patient) => {
         if (!patient?._id) return;
         setPatientReportLoading(true);
@@ -788,18 +816,11 @@ export default function DashboardPage() {
                                         {(patientReport.consultations || []).length === 0 ? (
                                             <div style={{ fontSize: '0.84rem', color: 'var(--text-light)' }}>No consultation history found.</div>
                                         ) : (
-                                            <div style={{ display: 'grid', gap: '0.4rem' }}>
-                                                {patientReport.consultations.slice(0, 8).map((c) => (
-                                                    <div key={c._id} style={{ fontSize: '0.84rem', paddingBottom: '0.35rem', borderBottom: '1px dashed var(--border)' }}>
-                                                        <strong>{c.doctorName || 'Unknown doctor'}</strong>
-                                                        <span style={{ color: 'var(--text-light)' }}> • {fmt(c.consultationDate || c.appointmentDate || c.updatedAt || c.createdAt)}</span>
-                                                        <div style={{ marginTop: '0.12rem', color: 'var(--text-light)' }}>
-                                                            Status: {String(c.status || 'unknown').toUpperCase()}
-                                                            {c.tokenNumber ? ` • Token #${c.tokenNumber}` : ''}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            <BarTrend
+                                                title="Consultancy history (last 6 months)"
+                                                items={patientConsultationBars.length ? patientConsultationBars : [{ label: 'No data', value: 0 }]}
+                                                color="#7c3aed"
+                                            />
                                         )}
                                     </div>
 

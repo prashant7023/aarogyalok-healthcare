@@ -25,9 +25,14 @@ const createRecord = asyncHandler(async (req, res) => {
 });
 
 const getRecords = asyncHandler(async (req, res) => {
-    const records = isPrivileged(req.user.role)
-        ? await recordService.getAllRecords()
-        : await recordService.getRecords(req.user._id);
+    let records;
+    if (req.user.role === 'doctor') {
+        records = await recordService.getDoctorScopedRecords(req.user._id);
+    } else if (isPrivileged(req.user.role)) {
+        records = await recordService.getAllRecords();
+    } else {
+        records = await recordService.getRecords(req.user._id);
+    }
     sendSuccess(res, records, 'Records fetched');
 });
 

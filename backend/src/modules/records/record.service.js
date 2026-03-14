@@ -191,6 +191,49 @@ const getRecords = async (userId) => HealthRecord.find({ userId }).sort({ create
 const getAllRecords = async () =>
     HealthRecord.find().populate('userId', 'name email').sort({ createdAt: -1 });
 
+const getDoctorConsultedPatientIds = async (doctorId) => {
+    if (!doctorId) return [];
+
+    const doctorObjectId = mongoose.Types.ObjectId.isValid(String(doctorId))
+        ? new mongoose.Types.ObjectId(String(doctorId))
+        : doctorId;
+
+    const rows = await Booking.aggregate([
+        {
+            $lookup: {
+                from: 'appointments',
+                localField: 'appointmentId',
+                foreignField: '_id',
+                as: 'appointment',
+            },
+        },
+        { $unwind: '$appointment' },
+        {
+            $match: {
+                'appointment.doctorId': doctorObjectId,
+                $or: [
+                    { status: 'completed' },
+                    { markedBy: 'completed' },
+                    { 'appointment.status': 'completed' },
+                ],
+            },
+        },
+        { $match: { patientId: { $ne: null } } },
+        { $group: { _id: '$patientId' } },
+    ]);
+
+    return rows.map((x) => x._id).filter(Boolean);
+};
+
+const getDoctorScopedRecords = async (doctorId) => {
+    const patientIds = await getDoctorConsultedPatientIds(doctorId);
+    if (!patientIds.length) return [];
+
+    return HealthRecord.find({ userId: { $in: patientIds } })
+        .populate('userId', 'name email')
+        .sort({ createdAt: -1 });
+};
+
 const getRecordById = async (id, userId, isPrivileged) => {
     if (isPrivileged) return HealthRecord.findById(id).populate('userId', 'name email');
     return HealthRecord.findOne({ _id: id, userId });
@@ -389,6 +432,7 @@ const getPatientFullReport = async (patientId) => {
 module.exports = {
     createRecord,
     getAllRecords,
+    getDoctorScopedRecords,
     getRecords,
     getRecordById,
     deleteRecord,
