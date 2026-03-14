@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import useAuthStore from '../../features/auth/authStore';
 import { Activity, Pill, Users, FileText, LayoutDashboard, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -19,26 +19,23 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, set
     const visibleNav = NAV.filter((n) => n.roles.includes(role));
     const sections = [...new Set(visibleNav.map((n) => n.section))];
 
-    // Drag-to-resize logic
     const handleDragStart = (e) => {
         e.preventDefault();
         const startX = e.clientX;
         const startWidth = sidebarWidth;
 
         const onMouseMove = (moveEvent) => {
-            const newWidth = Math.max(72, startWidth + (moveEvent.clientX - startX));
-            // Cap it around 400px so it doesn't cover everything
+            const newWidth = Math.max(80, startWidth + (moveEvent.clientX - startX));
             setSidebarWidth(Math.min(newWidth, 400));
         };
 
         const onMouseUp = () => {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
-            // Snap to closed if dragged very narrow
             setSidebarWidth((prevWidth) => {
                 if (prevWidth < 120) {
                     setIsOpen(false);
-                    return prevWidth; // Width resets when opened next
+                    return prevWidth;
                 } else if (!isOpen) {
                     setIsOpen(true);
                 }
@@ -55,14 +52,12 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, set
             className="sidebar"
             style={isMobile ? undefined : { width: isOpen ? sidebarWidth : undefined }}
         >
-            {/* Desktop collapse toggle */}
             {!isMobile && (
                 <>
                     <button className="sidebar-toggle-btn" onClick={() => setIsOpen(!isOpen)} title="Toggle sidebar">
                         {isOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
                     </button>
 
-                    {/* Drag Handle */}
                     {isOpen && (
                         <div
                             onMouseDown={handleDragStart}
@@ -81,13 +76,12 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, set
                 </>
             )}
 
-            {/* Mobile close button */}
             {isMobile && (
                 <button
                     onClick={() => setIsOpen(false)}
                     style={{
                         position: 'absolute', top: '1rem', right: '1rem',
-                        background: 'rgba(255,255,255,.1)', border: 'none',
+                        background: 'rgba(255,255,255,.08)', border: 'none',
                         borderRadius: '50%', width: 32, height: 32,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', color: '#fff', zIndex: 102,
@@ -98,15 +92,13 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, set
                 </button>
             )}
 
-            {/* Logo */}
             <div className="sidebar-logo">
                 <div className="sidebar-logo-icon">
-                    <Activity size={24} color="#60a5fa" strokeWidth={2.5} />
+                    <Activity size={20} color="#6eb1ff" strokeWidth={2.4} />
                 </div>
                 <span className="sidebar-logo-text">AarogyaLok</span>
             </div>
 
-            {/* Navigation */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 0' }}>
                 {sections.map((section) => (
                     <div className="sidebar-section" key={section}>
@@ -129,7 +121,6 @@ export default function Sidebar({ isOpen, setIsOpen, isMobile, sidebarWidth, set
                     </div>
                 ))}
             </div>
-            {/* Footer removed — profile & logout moved to header */}
         </aside>
     );
 }

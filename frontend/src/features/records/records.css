@@ -1,0 +1,25 @@
+.records-page {
+  width: 100%;
+}
+
+.records-highlight-card {
+  margin-bottom: 1.2rem;
+  background: #f7fbff;
+  border: 1px solid #c7dcf6;
+}
+
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.records-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--text-mid);
+  background: #fff;
+  border-radius: 12px;
+  border: 1px dashed var(--border-strong);
+}

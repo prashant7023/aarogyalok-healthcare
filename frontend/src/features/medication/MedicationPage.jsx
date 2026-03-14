@@ -20,24 +20,25 @@ import ReminderToast from './components/ReminderToast';
 import TodayReminders from './components/TodayReminders';
 import AdherenceStats from './components/AdherenceStats';
 import AddMedicationModal from './components/AddMedicationModal';
+import './medication.css';
 
 
 /* ---------- Single medication card ---------- */
 function MedCard({ med, onDelete }) {
     return (
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1.25rem 1.5rem' }}>
-            <div style={{ background: '#eff6ff', width: 44, height: 44, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Pill size={22} color="#2563eb" />
+            <div style={{ background: 'var(--primary-soft)', width: 44, height: 44, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Pill size={22} color="var(--primary)" />
             </div>
             <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a', marginBottom: '3px' }}>{med.medicineName}</div>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: '#64748b' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={14} color="#94a3b8" /> {med.scheduleTimes?.join(', ')}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Activity size={14} color="#94a3b8" /> {med.dosage}</span>
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-dark)', marginBottom: '3px' }}>{med.medicineName}</div>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-mid)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={14} color="var(--text-light)" /> {med.scheduleTimes?.join(', ')}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Activity size={14} color="var(--text-light)" /> {med.dosage}</span>
                 </div>
             </div>
             <button onClick={() => onDelete(med._id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: '#ef4444' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: 'var(--danger)' }}
                 title="Remove medication">
                 <Trash2 size={18} />
             </button>
@@ -105,13 +106,15 @@ export default function MedicationPage() {
     };
 
     return (
-        <div className="fade-in">
-            {/* Compact page header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>Medication Reminder</h1>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div className="fade-in med-page">
+            <div className="page-header">
+                <div>
+                    <h1>Medication Reminder</h1>
+                    <p>Track scheduled doses, daily adherence, and missed medication patterns.</p>
+                </div>
+                <div className="med-header-actions">
                     {toasts.length > 0 && (
-                        <span style={{ background: '#fef2f2', color: '#ef4444', borderRadius: '999px', padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #fecaca' }}>
+                        <span style={{ background: 'var(--danger-soft)', color: 'var(--danger)', borderRadius: '999px', padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ffd3df' }}>
                             <Bell size={12} /> {toasts.length}
                         </span>
                     )}
@@ -123,7 +126,7 @@ export default function MedicationPage() {
 
             {/* Error */}
             {error && (
-                <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                <div style={{ background: 'var(--danger-soft)', color: '#a32043', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
                     ⚠️ {error}
                 </div>
             )}
@@ -132,17 +135,17 @@ export default function MedicationPage() {
             <AdherenceStats adherence={adherence} />
 
             {/* Compact auto-fitting stat row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
+            <div className="med-stats-grid">
                 {[
-                    { icon: Pill, label: 'Active Meds', val: counts.total, bg: '#eff6ff', col: '#2563eb' },
-                    { icon: Check, label: 'Taken Today', val: counts.taken, bg: '#d1fae5', col: '#10b981' },
-                    { icon: Clock, label: 'Pending', val: counts.pending, bg: '#fef3c7', col: '#f59e0b' },
-                    { icon: X, label: 'Missed', val: counts.missed, bg: '#fee2e2', col: '#ef4444' },
+                    { icon: Pill, label: 'Active Meds', val: counts.total, bg: 'var(--primary-soft)', col: 'var(--primary)' },
+                    { icon: Check, label: 'Taken Today', val: counts.taken, bg: 'var(--success-soft)', col: 'var(--success)' },
+                    { icon: Clock, label: 'Pending', val: counts.pending, bg: 'var(--warning-soft)', col: 'var(--warning)' },
+                    { icon: X, label: 'Missed', val: counts.missed, bg: 'var(--danger-soft)', col: 'var(--danger)' },
                 ].map((s) => {
                     const Icon = s.icon;
                     return (
                         <div key={s.label} style={{
-                            background: '#fff', border: '1px solid #e2e8f0',
+                            background: '#fff', border: '1px solid var(--border)',
                             borderRadius: '10px', padding: '0.7rem 0.9rem',
                             display: 'flex', alignItems: 'center', gap: '0.6rem',
                         }}>
@@ -150,8 +153,8 @@ export default function MedicationPage() {
                                 <Icon size={16} color={s.col} />
                             </div>
                             <div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{s.val}</div>
-                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '1px', fontWeight: 500 }}>{s.label}</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-dark)', lineHeight: 1 }}>{s.val}</div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '1px', fontWeight: 600 }}>{s.label}</div>
                             </div>
                         </div>
                     );
@@ -167,7 +170,7 @@ export default function MedicationPage() {
             />
 
             {/* Tabs */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.85rem', background: '#f1f5f9', borderRadius: '8px', padding: '4px', width: 'fit-content', maxWidth: '100%' }}>
+            <div className="med-tabs">
                 {[
                     { key: 'today', label: "Today's Reminders", icon: Calendar },
                     { key: 'active', label: 'Active Medications', icon: Pill },
@@ -180,8 +183,8 @@ export default function MedicationPage() {
                                 display: 'flex', alignItems: 'center', gap: '5px',
                                 fontSize: '0.8rem', fontWeight: 600,
                                 background: activeTab === tab.key ? '#fff' : 'transparent',
-                                color: activeTab === tab.key ? '#0f172a' : '#64748b',
-                                boxShadow: activeTab === tab.key ? 'var(--shadow)' : 'none',
+                                color: activeTab === tab.key ? 'var(--text-dark)' : 'var(--text-mid)',
+                                boxShadow: activeTab === tab.key ? 'var(--shadow-sm)' : 'none',
                                 transition: 'all .15s',
                             }}>
                             <Icon size={13} /> {tab.label}
@@ -202,7 +205,7 @@ export default function MedicationPage() {
             {activeTab === 'active' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {meds.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                        <div className="med-empty">
                             <Pill size={40} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
                             <div style={{ fontWeight: 600 }}>No active medications</div>
                             <p>Click "Add Medication" to create your first schedule.</p>

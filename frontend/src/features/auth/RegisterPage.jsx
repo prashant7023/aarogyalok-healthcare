@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from './authStore';
 import { Activity } from 'lucide-react';
+import api from '../../shared/utils/api';
 
 // Removing Hospital from frontend UI, retaining Patient and Doctor
 const ROLES = [
@@ -30,10 +31,7 @@ export default function RegisterPage() {
             const extraData = Object.fromEntries(
                 Object.entries(extra).filter(([, v]) => v !== '')
             );
-            // authStore.register only passes role; we need to send extraData too
-            const res = await import('../../shared/utils/api').then(m =>
-                m.default.post('/auth/register', { name, email, password, role, ...extraData })
-            );
+            const res = await api.post('/auth/register', { name, email, password, role, ...extraData });
             const { user, token } = res.data.data;
             useAuthStore.getState().setAuth(user, token);
             navigate('/');
@@ -45,24 +43,25 @@ export default function RegisterPage() {
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-            <div style={{ width: '100%', maxWidth: '440px' }}>
-                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}><Activity size={48} color="#fff" strokeWidth={2} /></div>
-                    <h1 style={{ color: '#fff', fontSize: '1.8rem', marginBottom: '0.25rem' }}>Join AarogyaLok</h1>
-                    <p style={{ color: 'rgba(255,255,255,.5)', fontSize: '0.9rem' }}>Create your health account</p>
+        <div className="auth-page fade-in">
+            <div className="auth-shell" style={{ maxWidth: '450px' }}>
+                <div className="auth-brand">
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.45rem' }}>
+                        <Activity size={28} color="#005bd3" strokeWidth={2.3} />
+                    </div>
+                    <h1 style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>Create account</h1>
+                    <p style={{ fontSize: '0.88rem', color: '#616161' }}>Patient and doctor onboarding</p>
                 </div>
 
-                <div className="card" style={{ background: 'rgba(255,255,255,.05)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,.1)' }}>
-                    <h2 style={{ color: '#fff', marginBottom: '1.5rem' }}>Create Account</h2>
+                <div className="auth-card">
+                    <h2 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Registration</h2>
 
                     {error && (
-                        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                            ⚠️ {error}
+                        <div style={{ background: '#fff1f4', color: '#a32043', padding: '0.7rem 0.85rem', borderRadius: '8px', marginBottom: '0.9rem', fontSize: '0.84rem', border: '1px solid #ffd3df' }}>
+                            {error}
                         </div>
                     )}
 
-                    {/* Role selector */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.5rem', marginBottom: '1.25rem' }}>
                         {ROLES.map(r => (
                             <button
@@ -71,9 +70,9 @@ export default function RegisterPage() {
                                 onClick={() => setForm(f => ({ ...f, role: r.value }))}
                                 style={{
                                     padding: '0.65rem 0.5rem', borderRadius: '8px', border: '1px solid',
-                                    borderColor: form.role === r.value ? '#60a5fa' : 'rgba(255,255,255,.15)',
-                                    background: form.role === r.value ? 'rgba(96,165,250,.2)' : 'rgba(255,255,255,.05)',
-                                    color: form.role === r.value ? '#93c5fd' : 'rgba(255,255,255,.55)',
+                                    borderColor: form.role === r.value ? '#005bd3' : '#d2d5d8',
+                                    background: form.role === r.value ? '#ebf4ff' : '#fff',
+                                    color: form.role === r.value ? '#0048a8' : '#616161',
                                     fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', textAlign: 'center',
                                     transition: 'all .15s',
                                 }}
@@ -86,14 +85,13 @@ export default function RegisterPage() {
                     <form onSubmit={handleSubmit}>
                         {[['Full Name', 'text', 'name', 'e.g. Ramesh Kumar'], ['Email', 'email', 'email', 'you@example.com'], ['Password', 'password', 'password', '••••••••']].map(([label, type, key, ph]) => (
                             <div className="form-group" key={key}>
-                                <label style={{ color: 'rgba(255,255,255,.7)' }}>{label}</label>
+                                <label>{label}</label>
                                 <input
                                     className="input"
                                     type={type}
                                     placeholder={ph}
                                     value={form[key]}
                                     onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                                    style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: '#fff' }}
                                 />
                             </div>
                         ))}
@@ -103,8 +101,8 @@ export default function RegisterPage() {
                         </button>
                     </form>
 
-                    <p style={{ textAlign: 'center', marginTop: '1.25rem', color: 'rgba(255,255,255,.45)', fontSize: '0.875rem' }}>
-                        Already have an account? <Link to="/login" style={{ color: '#60a5fa', fontWeight: 600, textDecoration: 'none' }}>Login</Link>
+                    <p style={{ textAlign: 'center', marginTop: '1rem', color: '#616161', fontSize: '0.85rem' }}>
+                        Already registered? <Link to="/login" style={{ color: '#005bd3', fontWeight: 700, textDecoration: 'none' }}>Sign in</Link>
                     </p>
                 </div>
             </div>

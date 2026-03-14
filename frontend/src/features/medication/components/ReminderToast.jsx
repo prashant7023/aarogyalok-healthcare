@@ -6,7 +6,7 @@
  * - Progress bar showing time remaining
  * - Snooze button — re-fires after VITE_SNOOZE_MINUTES (default 5)
  * - Taken / Skip actions
- * - Premium dark glassmorphism design
+ * - Clean healthcare card design
  */
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -41,23 +41,24 @@ function SingleToast({ reminder, onRespond, onDismiss, onSnooze }) {
     }, [id, onDismiss]);
 
     const progress = (secondsLeft / AUTO_DISMISS_SEC) * 100;
-    const progressColor = secondsLeft > 15 ? '#3b82f6' : secondsLeft > 7 ? '#f59e0b' : '#ef4444';
+    const progressColor = secondsLeft > 15 ? '#005bd3' : secondsLeft > 7 ? '#b98900' : '#c43256';
 
     return (
         <div
             className="fade-in"
             style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                color: '#fff',
-                borderRadius: '18px',
+                background: '#ffffff',
+                color: 'var(--text-dark)',
+                borderRadius: '14px',
                 overflow: 'hidden',
-                boxShadow: '0 20px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 16px 36px rgba(17,18,19,.18)',
                 display: 'flex',
                 flexDirection: 'column',
             }}
         >
             {/* Progress bar at top */}
-            <div style={{ height: '3px', background: 'rgba(255,255,255,.1)', position: 'relative' }}>
+            <div style={{ height: '3px', background: '#edf0f2', position: 'relative' }}>
                 <div style={{
                     position: 'absolute', left: 0, top: 0, height: '100%',
                     width: `${progress}%`,
@@ -70,16 +71,15 @@ function SingleToast({ reminder, onRespond, onDismiss, onSnooze }) {
             <div style={{ padding: '1.1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 {/* Header row */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {/* Pulsing bell icon */}
                     <div style={{ position: 'relative', flexShrink: 0 }}>
                         <div style={{
                             position: 'absolute', inset: '-4px',
                             borderRadius: '50%',
-                            background: 'rgba(59,130,246,.25)',
+                            background: 'rgba(0, 91, 211, .16)',
                             animation: 'pulse 2s ease-in-out infinite',
                         }} />
                         <div style={{
-                            background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                            background: 'var(--primary)',
                             borderRadius: '50%', width: 38, height: 38,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             position: 'relative', zIndex: 1,
@@ -89,28 +89,27 @@ function SingleToast({ reminder, onRespond, onDismiss, onSnooze }) {
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '1px' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '1px' }}>
                             Medication Reminder
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Clock size={11} />
                             {new Date(reminder.scheduledAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            <span style={{ color: '#475569', margin: '0 2px' }}>·</span>
-                            <span style={{ color: secondsLeft <= 7 ? '#ef4444' : '#64748b' }}>
+                            <span style={{ color: 'var(--text-light)', margin: '0 2px' }}>·</span>
+                            <span style={{ color: secondsLeft <= 7 ? 'var(--danger)' : 'var(--text-mid)' }}>
                                 {secondsLeft}s
                             </span>
                         </div>
                     </div>
 
-                    {/* Dismiss */}
                     <button onClick={() => onDismiss(id)}
                         style={{
-                            background: 'rgba(255,255,255,.07)', border: 'none', borderRadius: '50%',
+                            background: '#f3f4f5', border: 'none', borderRadius: '50%',
                             width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', color: '#64748b', flexShrink: 0, transition: 'all .15s',
+                            cursor: 'pointer', color: 'var(--text-mid)', flexShrink: 0, transition: 'all .15s',
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,.14)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,.07)'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#e6e8ea'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#f3f4f5'}
                     >
                         <X size={14} />
                     </button>
@@ -118,19 +117,19 @@ function SingleToast({ reminder, onRespond, onDismiss, onSnooze }) {
 
                 {/* Medicine info */}
                 <div style={{
-                    background: 'rgba(255,255,255,.06)',
+                    background: 'var(--surface-subtle)',
                     borderRadius: '12px',
                     padding: '0.75rem 1rem',
-                    border: '1px solid rgba(255,255,255,.07)',
+                    border: '1px solid var(--border)',
                     display: 'flex', alignItems: 'center', gap: '0.75rem',
                 }}>
                     <div style={{ fontSize: '1.5rem' }}>💊</div>
                     <div>
-                        <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f1f5f9', lineHeight: 1.2 }}>
+                        <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-dark)', lineHeight: 1.2 }}>
                             {reminder.medicineName}
                         </div>
                         {reminder.dosage && (
-                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '2px' }}>
                                 {reminder.dosage}
                             </div>
                         )}
@@ -139,50 +138,47 @@ function SingleToast({ reminder, onRespond, onDismiss, onSnooze }) {
 
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {/* Taken */}
                     <button onClick={() => { playTakenSound(); onRespond(id, 'taken'); }}
                         style={{
                             flex: 1, padding: '0.65rem 0.5rem', borderRadius: '10px', border: 'none',
-                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            background: 'var(--success)',
                             color: '#fff', fontWeight: 700, cursor: 'pointer',
                             fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                            boxShadow: '0 4px 12px rgba(16,185,129,.3)',
+                            boxShadow: '0 4px 12px rgba(0,128,96,.24)',
                             transition: 'transform .1s, box-shadow .1s',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,.4)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 12px rgba(16,185,129,.3)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,128,96,.35)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,128,96,.24)'; }}
                     >
                         <Check size={14} /> Taken
                     </button>
 
-                    {/* Snooze */}
                     <button onClick={() => { playSnoozeSound(); onSnooze(reminder); }}
                         style={{
                             flex: 1, padding: '0.65rem 0.5rem', borderRadius: '10px',
-                            border: '1px solid rgba(251,191,36,.3)',
-                            background: 'rgba(251,191,36,.1)',
-                            color: '#fbbf24', fontWeight: 700, cursor: 'pointer',
+                            border: '1px solid #f0d991',
+                            background: 'var(--warning-soft)',
+                            color: '#8e6700', fontWeight: 700, cursor: 'pointer',
                             fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
                             transition: 'all .15s',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(251,191,36,.18)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(251,191,36,.1)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#ffeeb7'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--warning-soft)'; }}
                     >
                         <AlarmClock size={14} /> {SNOOZE_MINUTES}m
                     </button>
 
-                    {/* Skip */}
                     <button onClick={() => onRespond(id, 'skipped')}
                         style={{
                             flex: 1, padding: '0.65rem 0.5rem', borderRadius: '10px',
-                            border: '1px solid rgba(255,255,255,.1)',
-                            background: 'rgba(255,255,255,.05)',
-                            color: '#94a3b8', fontWeight: 600, cursor: 'pointer',
+                            border: '1px solid var(--border)',
+                            background: '#fff',
+                            color: 'var(--text-mid)', fontWeight: 600, cursor: 'pointer',
                             fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
                             transition: 'all .15s',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-subtle)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; }}
                     >
                         <X size={14} /> Skip
                     </button>

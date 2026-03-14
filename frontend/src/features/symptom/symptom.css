@@ -1,0 +1,35 @@
+.symptom-page {
+  width: 100%;
+}
+
+.symptom-disclaimer {
+  background: var(--warning-soft);
+  border: 1px solid #f0d991;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+  color: #8e6700;
+  margin-bottom: 1.2rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.symptom-form-card {
+  margin-bottom: 1.2rem;
+  padding: 1.3rem;
+}
+
+.symptom-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.symptom-result-card {
+  position: relative;
+  padding: 1.3rem;
+  border-color: #c7dcf6;
+  background: #f7fbff;
+}
