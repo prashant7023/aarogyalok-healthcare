@@ -20,6 +20,74 @@
   border: 1px solid var(--border);
 }
 
+.queue-list-shell {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.queue-list-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1rem;
+  transition: background 0.16s ease;
+  cursor: pointer;
+}
+
+.queue-list-row + .queue-list-row {
+  border-top: 1px solid var(--border);
+}
+
+.queue-list-row:hover {
+  background: #f9fbff;
+}
+
+.queue-list-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.queue-list-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.queue-list-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.queue-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+  color: var(--text-mid);
+  font-size: 0.86rem;
+}
+
+.queue-list-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: max-content;
+}
+
+@media (max-width: 900px) {
+  .queue-list-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .queue-crm-kpi-card {
   display: flex;
   align-items: center;

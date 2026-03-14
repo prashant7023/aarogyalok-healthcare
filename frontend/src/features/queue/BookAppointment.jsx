@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Calendar, User, MapPin, DollarSign, Hash, Clock, Star } from 'lucide-react';
+import { ArrowLeft, Calendar, User, MapPin, Hash, Clock, Star } from 'lucide-react';
 import api from '../../shared/utils/api';
 
 export default function BookAppointment() {
@@ -129,7 +129,6 @@ export default function BookAppointment() {
                             <span>{new Date(appointment.appointmentDate).toLocaleDateString()}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <DollarSign size={14} />
                             <span>₹{appointment.price}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, DollarSign, MapPin, ArrowLeft, Navigation } from 'lucide-react';
+import { Calendar, Clock, Plus, MapPin, ArrowLeft, Navigation } from 'lucide-react';
 import api from '../../shared/utils/api';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
@@ -212,7 +212,7 @@ export default function CreateAppointment() {
 
                             <div className="form-group">
                                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>
-                                    <DollarSign size={14} style={{ display: 'inline', marginBottom: '-2px' }} /> Price (₹) *
+                                    Price (₹) *
                                 </label>
                                 <input
                                     type="number"

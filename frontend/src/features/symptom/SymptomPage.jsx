@@ -1,20 +1,9 @@
 import { useState } from 'react';
 import api from '../../shared/utils/api';
-import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing, Star, PhoneCall } from 'lucide-react';
+import { Activity, AlertTriangle, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing, Star, PhoneCall } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
 import './symptom.css';
-
-const QUICK_TAGS = [
-    { label: 'Fever', value: 'fever' },
-    { label: 'Cough', value: 'cough' },
-    { label: 'Headache', value: 'headache' },
-    { label: 'Stomachache', value: 'stomachache' },
-    { label: 'Fatigue', value: 'fatigue' },
-    { label: 'Chest Pain', value: 'chest pain' },
-    { label: 'Back Pain', value: 'back pain' },
-    { label: 'Dizziness', value: 'dizziness' },
-];
 
 const SEV_CLASS = { mild: 'badge badge-green', moderate: 'badge badge-yellow', severe: 'badge badge-red', critical: 'badge badge-red' };
 const SEV_LABEL = { mild: 'Mild', moderate: 'Moderate', severe: 'Severe', critical: 'Critical' };
@@ -23,7 +12,6 @@ export default function SymptomPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const [input, setInput] = useState('');
-    const [selected, setSelected] = useState([]);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -40,10 +28,6 @@ export default function SymptomPage() {
         patientGender: 'Male',
     });
 
-    const toggleTag = (val) => {
-        setSelected(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
-    };
-
     const parseFreeTextSymptoms = (text) => {
         const cleaned = String(text || '').trim();
         if (!cleaned) return [];
@@ -58,8 +42,8 @@ export default function SymptomPage() {
     };
 
     const analyze = async () => {
-        const all = [...new Set([...selected, ...parseFreeTextSymptoms(input)])];
-        if (!all.length) { setError('Please enter or select at least one symptom'); return; }
+        const all = [...new Set(parseFreeTextSymptoms(input))];
+        if (!all.length) { setError('Please enter at least one symptom'); return; }
         setError(''); setLoading(true); setResult(null);
         try {
             const res = await api.post('/symptom/analyze', { symptoms: all });
@@ -71,7 +55,6 @@ export default function SymptomPage() {
 
     const reset = () => {
         setInput('');
-        setSelected([]);
         setResult(null);
         setError('');
         setBookingError('');
@@ -130,7 +113,7 @@ export default function SymptomPage() {
                 patientPhone: bookingForm.patientPhone.trim(),
                 patientAge: age,
                 patientGender: bookingForm.patientGender,
-                description: (input || selected.join(', ') || 'Symptom checker consultation').trim(),
+                description: (input || 'Symptom checker consultation').trim(),
             };
 
             const res = await api.post('/queue/bookings', payload);
@@ -206,26 +189,7 @@ export default function SymptomPage() {
             </div>
 
             <div className="card symptom-form-card">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.8rem', color: 'var(--text-dark)' }}>
-                    <Search size={16} color="var(--primary)" /> Quick-select common symptoms
-                </label>
-                <div className="symptom-tags">
-                    {QUICK_TAGS.map(t => (
-                        <button key={t.value} type="button"
-                            onClick={() => toggleTag(t.value)}
-                            style={{
-                                padding: '0.5rem 0.9rem', borderRadius: '999px', fontSize: '0.82rem',
-                                border: '1px solid', cursor: 'pointer', transition: 'all .15s', fontWeight: 600,
-                                borderColor: selected.includes(t.value) ? 'var(--primary)' : 'var(--border)',
-                                background: selected.includes(t.value) ? 'var(--primary-soft)' : '#fff',
-                                color: selected.includes(t.value) ? 'var(--primary-dark)' : 'var(--text-mid)',
-                                boxShadow: selected.includes(t.value) ? '0 0 0 2px rgba(0,91,211,.14)' : 'none'
-                            }}
-                        >{t.label}</button>
-                    ))}
-                </div>
-
-                <label style={{ color: 'var(--text-dark)', marginBottom: '0.55rem' }}>Or describe symptoms in your own words (paragraph or list)</label>
+                <label style={{ color: 'var(--text-dark)', marginBottom: '0.55rem' }}>Describe symptoms in your own words (paragraph or list)</label>
                 <textarea
                     className="input"
                     placeholder="e.g. I have had fever since yesterday, body pain, sore throat, and mild dizziness in the morning."

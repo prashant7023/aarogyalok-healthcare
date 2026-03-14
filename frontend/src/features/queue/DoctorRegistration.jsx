@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Stethoscope, Clock, Calendar, DollarSign, MapPin, Award, User, Mail, Lock, Phone, X } from 'lucide-react';
+import { Stethoscope, Clock, Calendar, MapPin, Award, User, Mail, Lock, Phone, X } from 'lucide-react';
 import api from '../../shared/utils/api';
 import useAuthStore from '../auth/authStore';
 
@@ -338,7 +338,6 @@ export default function DoctorRegistration({ onClose, onSuccess }) {
 
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                <DollarSign size={16} style={{ display: 'inline', marginRight: '6px' }} />
                                 Consultation Fee (₹)
                             </label>
                             <input

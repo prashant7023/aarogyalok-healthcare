@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Calendar, Clock, DollarSign, MapPin, Users, Filter, BookOpen, RefreshCw, Stethoscope, Navigation, Star, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Calendar, Clock, MapPin, Users, Filter, BookOpen, RefreshCw, Stethoscope, Navigation, Star, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../shared/utils/api';
 
@@ -48,6 +48,11 @@ export default function PatientDashboard() {
         specializations: [...new Set(appointments.map(a => a.specialization))].length,
         totalIssuedTokens: appointments.reduce((sum, apt) => sum + (apt.totalTokensIssued || 0), 0)
     };
+
+    const specializationOptions = useMemo(() => {
+        return [...new Set(appointments.map((a) => String(a.specialization || '').trim()).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+    }, [appointments]);
 
     return (
         <div className="fade-in">
@@ -130,16 +135,9 @@ export default function PatientDashboard() {
                             onChange={(e) => setFilter({...filter, specialization: e.target.value})}
                         >
                             <option value="">All Specializations</option>
-                            <option value="Cardiology">Cardiology</option>
-                            <option value="Dermatology">Dermatology</option>
-                            <option value="Pediatrics">Pediatrics</option>
-                            <option value="Orthopedics">Orthopedics</option>
-                            <option value="General">General</option>
-                            <option value="Neurology">Neurology</option>
-                            <option value="ENT">ENT</option>
-                            <option value="Gynecology">Gynecology</option>
-                            <option value="Ophthalmology">Ophthalmology</option>
-                            <option value="Dentistry">Dentistry</option>
+                            {specializationOptions.map((value) => (
+                                <option key={value} value={value}>{value}</option>
+                            ))}
                         </select>
                     </div>
                     <div>
@@ -245,7 +243,6 @@ export default function PatientDashboard() {
                                                         {aptDate}
                                                     </span>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                        <DollarSign size={11} color="#94a3b8" />
                                                         ₹{apt.price}
                                                     </span>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#008060', fontWeight: 600 }}>

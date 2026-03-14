@@ -23,6 +23,14 @@ function ProtectedRoute({ children }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
+function SymptomRoute() {
+  const role = String(useAuthStore((s) => s.user?.role || 'patient')).toLowerCase();
+  if (role === 'doctor') {
+    return <Navigate to="/queue" replace />;
+  }
+  return <SymptomPage />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -38,7 +46,7 @@ export default function App() {
           }
         >
           <Route index element={<Dashboard />} />
-          <Route path="symptom" element={<SymptomPage />} />
+          <Route path="symptom" element={<SymptomRoute />} />
           <Route path="medication" element={<MedicationPage />} />
           <Route path="queue" element={<QueuePage />} />
           <Route path="queue/appointments/:appointmentId" element={<AppointmentDetails />} />

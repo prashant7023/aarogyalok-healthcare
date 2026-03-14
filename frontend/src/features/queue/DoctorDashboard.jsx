@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Plus, Users, Clock, DollarSign, MapPin, Eye, Hash } from 'lucide-react';
+import { Calendar, Plus, Users, Clock, MapPin, Eye, Hash } from 'lucide-react';
 import api from '../../shared/utils/api';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../auth/authStore';
@@ -29,6 +29,15 @@ export default function DoctorDashboard() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const formatAppointmentDate = (value) => {
+        if (!value) return 'Date not set';
+        return new Date(value).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
     };
 
     return (
@@ -117,60 +126,40 @@ export default function DoctorDashboard() {
                         </button>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gap: '1rem' }}>
-                        {appointments.map(apt => (
+                    <div className="queue-list-shell">
+                        {appointments.map((apt) => (
                             <div
                                 key={apt._id}
-                                className="card queue-appointment-card"
+                                className="queue-list-row"
                                 onClick={() => navigate(`/queue/appointments/${apt._id}`)}
-                                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
-                                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                             >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexWrap: 'wrap', gap: '1rem' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-dark)' }}>
-                                            {apt.title}
-                                        </h3>
-                                        <span className="badge badge-blue" style={{ marginBottom: '1rem' }}>
-                                            {apt.specialization}
-                                        </span>
-
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '1rem', fontSize: '0.88rem', color: 'var(--text-mid)' }}>
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <DollarSign size={16} color="var(--text-light)" />
-                                                <span>₹{apt.price}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <MapPin size={16} color="var(--text-light)" />
-                                                <span>{apt.address}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <Clock size={16} color="var(--text-light)" />
-                                                <span>{apt.consultationDurationMinutes} min per patient</span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <Hash size={16} color="var(--text-light)" />
-                                                <span>Issued tokens: {apt.totalTokensIssued || 0}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <Users size={16} color="var(--text-light)" />
-                                                <span>Current token: {apt.currentTokenNumber || '-'}</span>
-                                            </div>
-                                        </div>
+                                <div className="queue-list-main">
+                                    <div className="queue-list-head">
+                                        <h3>{apt.title}</h3>
+                                        <span className="badge badge-blue">{apt.specialization}</span>
                                     </div>
 
-                                    <button
-                                        className="btn btn-secondary"
-                                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            navigate(`/queue/appointments/${apt._id}`);
-                                        }}
-                                    >
-                                        <Eye size={16} />
-                                        View Details
-                                    </button>
+                                    <div className="queue-list-meta">
+                                        <span><Calendar size={14} /> {formatAppointmentDate(apt.appointmentDate)}</span>
+                                        <span>₹{apt.price}</span>
+                                        <span><MapPin size={14} /> {apt.address}</span>
+                                        <span><Clock size={14} /> {apt.consultationDurationMinutes} min per patient</span>
+                                        <span><Hash size={14} /> Issued tokens: {apt.totalTokensIssued || 0}</span>
+                                        <span><Users size={14} /> Current token: {apt.currentTokenNumber || '-'}</span>
+                                    </div>
                                 </div>
+
+                                <button
+                                    className="btn btn-secondary"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/queue/appointments/${apt._id}`);
+                                    }}
+                                >
+                                    <Eye size={16} />
+                                    View Details
+                                </button>
                             </div>
                         ))}
                     </div>

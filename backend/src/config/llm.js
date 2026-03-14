@@ -20,6 +20,26 @@ const SAFE_DEFAULT_RESULT = {
 };
 
 const ALLOWED_SEVERITY = new Set(['mild', 'moderate', 'severe']);
+const ALLOWED_URGENCY = new Set(['Emergency', 'Within 24 hours', 'Visit within a week']);
+
+const normalizeUrgency = (value) => {
+  const raw = String(value || '').trim();
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('emergency') || lower.includes('immediate') || lower.includes('er')) {
+    return 'Emergency';
+  }
+  if (lower.includes('24') || lower.includes('urgent') || lower.includes('today')) {
+    return 'Within 24 hours';
+  }
+  if (lower.includes('week')) {
+    return 'Visit within a week';
+  }
+  if (ALLOWED_URGENCY.has(raw)) {
+    return raw;
+  }
+  return SAFE_DEFAULT_RESULT.urgency_level;
+};
 
 const toConditionKey = (value) => String(value || '')
   .toLowerCase()
@@ -105,6 +125,8 @@ const normalizeResult = (value) => {
     : SAFE_DEFAULT_RESULT.possible_diseases;
 
   const severity = typeof value.severity === 'string' ? value.severity.trim().toLowerCase() : '';
+  const normalizedSeverity = ALLOWED_SEVERITY.has(severity) ? severity : SAFE_DEFAULT_RESULT.severity;
+  const normalizedUrgency = normalizeUrgency(value.urgency_level);
   const finalPossibleDiseases = possibleDiseases.length > 0 ? possibleDiseases : SAFE_DEFAULT_RESULT.possible_diseases;
   const conditionDetails = normalizeConditionDetails(value.condition_details, finalPossibleDiseases);
   const diseaseCategory =
@@ -120,21 +142,25 @@ const normalizeResult = (value) => {
     ? value.abnormal_case
     : SAFE_DEFAULT_RESULT.abnormal_case;
 
+  const finalUrgency = normalizedSeverity === 'severe'
+    ? (normalizedUrgency === 'Visit within a week' ? 'Within 24 hours' : normalizedUrgency)
+    : normalizedUrgency;
+
+  const finalAbnormalCase = normalizedSeverity === 'severe' ? true : abnormalCase;
+  const finalCanHomeCare = (normalizedSeverity === 'severe' || finalUrgency === 'Emergency') ? false : canHomeCare;
+
   return {
     possible_diseases: finalPossibleDiseases,
     condition_details: conditionDetails.length > 0 ? conditionDetails : SAFE_DEFAULT_RESULT.condition_details,
     disease_category: diseaseCategory,
-    can_home_care: canHomeCare,
-    abnormal_case: abnormalCase,
-    severity: ALLOWED_SEVERITY.has(severity) ? severity : SAFE_DEFAULT_RESULT.severity,
+    can_home_care: finalCanHomeCare,
+    abnormal_case: finalAbnormalCase,
+    severity: normalizedSeverity,
     recommended_specialist:
       typeof value.recommended_specialist === 'string' && value.recommended_specialist.trim()
         ? value.recommended_specialist.trim()
         : SAFE_DEFAULT_RESULT.recommended_specialist,
-    urgency_level:
-      typeof value.urgency_level === 'string' && value.urgency_level.trim()
-        ? value.urgency_level.trim()
-        : SAFE_DEFAULT_RESULT.urgency_level,
+    urgency_level: finalUrgency,
     home_advice:
       typeof value.home_advice === 'string' && value.home_advice.trim()
         ? value.home_advice.trim()
@@ -287,6 +313,10 @@ const analyzeSymptoms = async (symptoms, options = {}) => {
     'Escalate to severe/emergency only if red-flag patterns are present: crushing or pressure-like chest pain, radiation to jaw/left arm, severe breathlessness, syncope, persistent neurologic deficit, active bleeding, or shock signs.',
     'If no clear red flags are present, prefer mild or moderate severity and mention warning signs to seek urgent care.',
     'Rank possibilities by likelihood from the provided symptoms and include at least one common benign differential when clinically plausible.',
+    'Never claim certainty and do not use words like definitely, confirmed, or 100%.',
+    'Only include conditions supported by symptom evidence or common clinical pairing.',
+    'Use one of these urgency levels exactly: Emergency, Within 24 hours, Visit within a week.',
+    'Maintain consistency: severe should not be home-care-only.',
     'Return strict JSON only, no markdown.'
   ].join(' ');
 
@@ -294,12 +324,12 @@ const analyzeSymptoms = async (symptoms, options = {}) => {
     ? `Available doctor specializations in this system:\n${availableSpecializations.map((s) => `- ${s}`).join('\n')}\n\nSpecialist selection rule:\n- Set recommended_specialist to the single best matching value from the above list (exact text).\n- Do not invent a new specialist label when the list is provided.\n- If uncertain, choose the closest broad option from the list.`
     : 'No specialization list is available. Choose the most clinically appropriate specialist label.';
 
-  const userPrompt = `A patient reports these symptoms:\n${symptomList.map((s) => `- ${s}`).join('\n')}\n\nInput context: ${isLikelyKeywordOnlyInput ? 'Likely short keyword/tag input with limited context.' : 'Detailed free-text input with richer context.'}\n\n${specializationInstruction}\n\nTriage instructions:\n1) Consider combinations of all symptoms, not a single symptom in isolation.\n2) If severe red flags are not explicitly present, do not default to emergency severity.\n3) Keep output clinically cautious, patient-friendly, and practical.\n4) If multiple symptoms are present, provide multiple plausible differentials ranked by likelihood (not just one cause).\n5) condition_details must include one entry for each item in possible_diseases, in the same order.\n\nReturn exactly this JSON shape:\n{\n  "possible_diseases": ["condition1", "condition2", "condition3"],\n  "condition_details": [\n    {\n      "name": "condition1",\n      "explanation": "Simple patient-friendly explanation (1-2 lines)",\n      "common_causes": ["cause1", "cause2", "cause3"]\n    }\n  ],\n  "disease_category": "Short clinical category label",\n  "can_home_care": true,\n  "abnormal_case": false,\n  "severity": "mild|moderate|severe",\n  "recommended_specialist": "Specialist name",\n  "urgency_level": "Emergency|Within 24 hours|Visit within a week",\n  "home_advice": "Short healthcare/medication-safe advice with emergency warning signs when relevant"\n}`;
+  const userPrompt = `A patient reports these symptoms:\n${symptomList.map((s) => `- ${s}`).join('\n')}\n\nInput context: ${isLikelyKeywordOnlyInput ? 'Likely short keyword/tag input with limited context.' : 'Detailed free-text input with richer context.'}\n\n${specializationInstruction}\n\nTriage instructions:\n1) Consider combinations of all symptoms, not a single symptom in isolation.\n2) If severe red flags are not explicitly present, do not default to emergency severity.\n3) Keep output clinically cautious, patient-friendly, and practical.\n4) If multiple symptoms are present, provide multiple plausible differentials ranked by likelihood (not just one cause).\n5) condition_details must include one entry for each item in possible_diseases, in the same order.\n6) possible_diseases must be 3 to 4 unique items, ordered by likelihood.\n7) Avoid over-severe triage for sparse input unless explicit red-flag symptoms are present.\n\nReturn exactly this JSON shape:\n{\n  "possible_diseases": ["condition1", "condition2", "condition3"],\n  "condition_details": [\n    {\n      "name": "condition1",\n      "explanation": "Simple patient-friendly explanation (1-2 lines)",\n      "common_causes": ["cause1", "cause2", "cause3"]\n    }\n  ],\n  "disease_category": "Short clinical category label",\n  "can_home_care": true,\n  "abnormal_case": false,\n  "severity": "mild|moderate|severe",\n  "recommended_specialist": "Specialist name",\n  "urgency_level": "Emergency|Within 24 hours|Visit within a week",\n  "home_advice": "Short healthcare/medication-safe advice with emergency warning signs when relevant"\n}`;
 
   const rawText = await groqChat([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
-  ], { temperature: 0.2, responseFormat: { type: 'json_object' } });
+  ], { temperature: 0.1, responseFormat: { type: 'json_object' } });
 
   if (!rawText) {
     return SAFE_DEFAULT_RESULT;
