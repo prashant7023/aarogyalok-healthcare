@@ -12,7 +12,7 @@
  * Nothing is added to App.jsx, main.jsx, or AppLayout.jsx.
  */
 import { useState, useCallback } from 'react';
-import { Pill, Check, Clock, X, Plus, Calendar, Activity, Trash2, Bell } from 'lucide-react';
+import { Pill, Check, Clock, X, Plus, Calendar, Activity, Trash2, Bell, Pencil } from 'lucide-react';
 
 import { useMedications } from './hooks/useMedications';
 import { useMedicationSocket } from './hooks/useMedicationSocket';
@@ -20,11 +20,12 @@ import ReminderToast from './components/ReminderToast';
 import TodayReminders from './components/TodayReminders';
 import AdherenceStats from './components/AdherenceStats';
 import AddMedicationModal from './components/AddMedicationModal';
+import EditScheduleModal from './components/EditScheduleModal';
 import './medication.css';
 
 
 /* ---------- Single medication card ---------- */
-function MedCard({ med, onDelete }) {
+function MedCard({ med, onDelete, onEdit }) {
     return (
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1.25rem 1.5rem' }}>
             <div style={{ background: 'var(--primary-soft)', width: 44, height: 44, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -37,11 +38,22 @@ function MedCard({ med, onDelete }) {
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Activity size={14} color="var(--text-light)" /> {med.dosage}</span>
                 </div>
             </div>
-            <button onClick={() => onDelete(med._id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: 'var(--danger)' }}
-                title="Remove medication">
-                <Trash2 size={18} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <button
+                    onClick={() => onEdit(med)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: 'var(--primary)' }}
+                    title="Edit schedule"
+                >
+                    <Pencil size={18} />
+                </button>
+                <button
+                    onClick={() => onDelete(med._id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: 'var(--danger)' }}
+                    title="Remove medication"
+                >
+                    <Trash2 size={18} />
+                </button>
+            </div>
         </div>
     );
 }
@@ -50,7 +62,7 @@ function MedCard({ med, onDelete }) {
 export default function MedicationPage() {
     const {
         meds, todayReminders, adherence, loading, error,
-        addMedication, deleteMedication, respondToReminder,
+        addMedication, deleteMedication, updateMedicationSchedule, respondToReminder,
         addIncomingReminder, refetchReminders,
     } = useMedications();
 
@@ -71,6 +83,7 @@ export default function MedicationPage() {
     useMedicationSocket({ onReminder: handleSocketReminder });
 
     const [showForm, setShowForm] = useState(false);
+    const [editingMed, setEditingMed] = useState(null);
     const [activeTab, setActiveTab] = useState('today'); // 'today' | 'active'
 
     const handleRespond = async (reminderId, status) => {
@@ -169,6 +182,14 @@ export default function MedicationPage() {
                 loading={loading}
             />
 
+            <EditScheduleModal
+                open={Boolean(editingMed)}
+                medication={editingMed}
+                loading={loading}
+                onClose={() => setEditingMed(null)}
+                onSave={updateMedicationSchedule}
+            />
+
             {/* Tabs */}
             <div className="med-tabs">
                 {[
@@ -211,7 +232,14 @@ export default function MedicationPage() {
                             <p>Click "Add Medication" to create your first schedule.</p>
                         </div>
                     ) : (
-                        meds.map((med) => <MedCard key={med._id} med={med} onDelete={deleteMedication} />)
+                        meds.map((med) => (
+                            <MedCard
+                                key={med._id}
+                                med={med}
+                                onDelete={deleteMedication}
+                                onEdit={setEditingMed}
+                            />
+                        ))
                     )}
                 </div>
             )}
