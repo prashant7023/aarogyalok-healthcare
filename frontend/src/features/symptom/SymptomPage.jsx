@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import api from '../../shared/utils/api';
-import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertTriangle, Search, RefreshCw, FileText, CheckCircle2, UserRound, Hospital, BellRing } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../auth/authStore';
 import './symptom.css';
 
 const QUICK_TAGS = [
@@ -18,11 +20,25 @@ const SEV_CLASS = { mild: 'badge badge-green', moderate: 'badge badge-yellow', s
 const SEV_LABEL = { mild: 'Mild', moderate: 'Moderate', severe: 'Severe', critical: 'Critical' };
 
 export default function SymptomPage() {
+    const navigate = useNavigate();
+    const { user } = useAuthStore();
     const [input, setInput] = useState('');
     const [selected, setSelected] = useState([]);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [bookingLoadingId, setBookingLoadingId] = useState(null);
+    const [bookingError, setBookingError] = useState('');
+    const [bookedToken, setBookedToken] = useState(null);
+    const [selectedDoctor, setSelectedDoctor] = useState(null);
+    const [doctorOpenAppointments, setDoctorOpenAppointments] = useState([]);
+    const [doctorOpenLoading, setDoctorOpenLoading] = useState(false);
+    const [bookingForm, setBookingForm] = useState({
+        patientName: user?.name || '',
+        patientPhone: user?.phone || '',
+        patientAge: '',
+        patientGender: 'Male',
+    });
 
     const toggleTag = (val) => {
         setSelected(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
@@ -53,7 +69,79 @@ export default function SymptomPage() {
         } finally { setLoading(false); }
     };
 
-    const reset = () => { setInput(''); setSelected([]); setResult(null); setError(''); };
+    const reset = () => {
+        setInput('');
+        setSelected([]);
+        setResult(null);
+        setError('');
+        setBookingError('');
+        setBookedToken(null);
+        setSelectedDoctor(null);
+        setDoctorOpenAppointments([]);
+    };
+
+    const loadDoctorOpenAppointments = async (doc) => {
+        if (!doc?.doctorId) return;
+
+        setSelectedDoctor(doc);
+        setDoctorOpenAppointments([]);
+        setDoctorOpenLoading(true);
+        setBookingError('');
+
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const res = await api.get(`/queue/appointments?doctorId=${doc.doctorId}&fromDate=${today}`);
+            const appts = Array.isArray(res?.data?.data) ? res.data.data : [];
+            setDoctorOpenAppointments(appts);
+        } catch (e) {
+            setBookingError(e.response?.data?.message || 'Failed to load open appointments for selected doctor.');
+        } finally {
+            setDoctorOpenLoading(false);
+        }
+    };
+
+    const handleAutoBook = async (appointment) => {
+        if (!appointment?.appointmentId) return;
+
+        if (!bookingForm.patientName.trim()) {
+            setBookingError('Patient name is required for booking.');
+            return;
+        }
+
+        if (!/^\d{10}$/.test(bookingForm.patientPhone.trim())) {
+            setBookingError('Please enter a valid 10-digit mobile number.');
+            return;
+        }
+
+        const age = parseInt(bookingForm.patientAge, 10);
+        if (!Number.isInteger(age) || age < 1 || age > 120) {
+            setBookingError('Please enter valid patient age (1-120).');
+            return;
+        }
+
+        setBookingError('');
+        setBookedToken(null);
+        setBookingLoadingId(appointment.appointmentId);
+
+        try {
+            const payload = {
+                appointmentId: appointment.appointmentId,
+                patientName: bookingForm.patientName.trim(),
+                patientPhone: bookingForm.patientPhone.trim(),
+                patientAge: age,
+                patientGender: bookingForm.patientGender,
+                description: (input || selected.join(', ') || 'Symptom checker consultation').trim(),
+            };
+
+            const res = await api.post('/queue/bookings', payload);
+            const tokenNumber = res?.data?.data?.tokenNumber;
+            setBookedToken(tokenNumber || '—');
+        } catch (e) {
+            setBookingError(e.response?.data?.message || 'Auto booking failed. Try another appointment.');
+        } finally {
+            setBookingLoadingId(null);
+        }
+    };
 
     const getConditionDetails = () => {
         const details = result?.aiResult?.condition_details;
@@ -190,6 +278,172 @@ export default function SymptomPage() {
                             <div style={{ fontWeight: 800, color: 'var(--text-dark)', fontSize: '1.05rem', textTransform: 'capitalize' }}>{result.aiResult?.urgency_level}</div>
                         </div>
                     </div>
+
+                    {result.automationPlan && (
+                        <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid var(--border)', padding: '1rem', marginTop: '0.9rem' }}>
+                            <div style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '0.75rem' }}>
+                                Automation Workflow Output
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '0.7rem', marginBottom: '0.8rem' }}>
+                                <div style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.7rem' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.25rem' }}>Disease Category</div>
+                                    <div style={{ fontWeight: 700, color: 'var(--text-dark)' }}>{result.automationPlan?.diseaseCategory || result.aiResult?.disease_category || 'General Medicine'}</div>
+                                </div>
+                                <div style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.7rem' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.25rem' }}>Workflow Stage</div>
+                                    <div style={{ fontWeight: 700, color: 'var(--text-dark)', textTransform: 'capitalize' }}>{(result.automationPlan?.workflowStage || '').replace(/-/g, ' ') || 'triage'}</div>
+                                </div>
+                                <div style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '0.7rem' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.25rem' }}>Queue Recommendation</div>
+                                    <div style={{ fontWeight: 700, color: 'var(--text-dark)' }}>{result.automationPlan?.queueRecommendation?.shouldJoinQueue ? 'Join Queue' : 'Home Care First'}</div>
+                                </div>
+                            </div>
+
+                            <div style={{ fontSize: '0.86rem', color: 'var(--text-mid)', marginBottom: '0.8rem', lineHeight: 1.5 }}>
+                                {result.automationPlan?.queueRecommendation?.reason}
+                            </div>
+
+                            {Array.isArray(result.automationPlan?.recommendedProviders) && result.automationPlan.recommendedProviders.length > 0 && (
+                                <div style={{ marginBottom: '0.8rem' }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <UserRound size={14} /> Recommended Doctors
+                                    </div>
+
+                                    {result.automationPlan?.specialistMatchFound === false && (
+                                        <div style={{ border: '1px solid #ffe6b3', background: '#fff8e8', borderRadius: '8px', padding: '0.55rem 0.65rem', marginBottom: '0.5rem' }}>
+                                            <div style={{ fontSize: '0.78rem', color: '#8e6700', fontWeight: 600 }}>
+                                                Exact specialist is not available right now. Showing alternate available doctors for immediate booking.
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                        {result.automationPlan.recommendedProviders.slice(0, 3).map((doc, idx) => (
+                                            <div key={`${doc.name}-${idx}`} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '0.55rem 0.7rem', background: 'var(--surface-subtle)' }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-dark)' }}>{doc.name}</div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-mid)' }}>{doc.specialization || 'General Physician'} {doc.clinicAddress ? `• ${doc.clinicAddress}` : ''}</div>
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    style={{ marginTop: '0.45rem' }}
+                                                    onClick={() => loadDoctorOpenAppointments(doc)}
+                                                >
+                                                    {selectedDoctor?.doctorId === doc.doctorId ? 'Doctor Selected' : 'Select Doctor'}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedDoctor && (
+                                <div style={{ marginBottom: '0.8rem' }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Hospital size={14} /> Open Appointments for {selectedDoctor.name}
+                                    </div>
+
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '0.7rem', background: 'var(--surface-subtle)', marginBottom: '0.6rem' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-mid)', marginBottom: '0.45rem', fontWeight: 700 }}>
+                                            Quick Booking Details (for auto token assignment)
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: '0.5rem' }}>
+                                            <input
+                                                className="input"
+                                                placeholder="Patient name"
+                                                value={bookingForm.patientName}
+                                                onChange={(e) => setBookingForm((prev) => ({ ...prev, patientName: e.target.value }))}
+                                            />
+                                            <input
+                                                className="input"
+                                                placeholder="10-digit mobile"
+                                                value={bookingForm.patientPhone}
+                                                onChange={(e) => setBookingForm((prev) => ({ ...prev, patientPhone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                                            />
+                                            <input
+                                                className="input"
+                                                type="number"
+                                                min="1"
+                                                max="120"
+                                                placeholder="Age"
+                                                value={bookingForm.patientAge}
+                                                onChange={(e) => setBookingForm((prev) => ({ ...prev, patientAge: e.target.value }))}
+                                            />
+                                            <select
+                                                className="input"
+                                                value={bookingForm.patientGender}
+                                                onChange={(e) => setBookingForm((prev) => ({ ...prev, patientGender: e.target.value }))}
+                                            >
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-light)', marginTop: '0.45rem' }}>
+                                            Clicking Book Appointment auto-generates your queue token for the selected doctor's next vacant schedule slot.
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                        {doctorOpenLoading && (
+                                            <div style={{ fontSize: '0.82rem', color: 'var(--text-mid)' }}>Loading appointments...</div>
+                                        )}
+
+                                        {!doctorOpenLoading && doctorOpenAppointments.length === 0 && (
+                                            <div style={{ fontSize: '0.82rem', color: 'var(--text-mid)' }}>No open appointments found for this doctor.</div>
+                                        )}
+
+                                        {!doctorOpenLoading && doctorOpenAppointments.slice(0, 5).map((apt, idx) => (
+                                            <div key={`${apt._id || idx}`} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '0.55rem 0.7rem', background: 'var(--surface-subtle)' }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-dark)' }}>{apt.title}</div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-mid)' }}>
+                                                    {new Date(apt.appointmentDate).toLocaleDateString()} • Token {apt.currentTokenNumber || '-'} • Issued {apt.totalTokensIssued || 0}
+                                                </div>
+                                                <button
+                                                    className="btn btn-primary btn-sm"
+                                                    style={{ marginTop: '0.45rem' }}
+                                                    onClick={() => handleAutoBook({ appointmentId: apt._id })}
+                                                    disabled={Boolean(bookingLoadingId)}
+                                                >
+                                                    {bookingLoadingId === apt._id ? 'Booking...' : 'Book Appointment'}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {bookingError && (
+                                        <div className="form-error" style={{ marginTop: '0.55rem' }}>
+                                            {bookingError}
+                                        </div>
+                                    )}
+
+                                    {bookedToken && (
+                                        <div style={{ marginTop: '0.55rem', border: '1px solid #c9f0db', background: '#effaf4', borderRadius: '8px', padding: '0.6rem 0.7rem' }}>
+                                            <div style={{ fontWeight: 700, color: '#127a5a', fontSize: '0.82rem' }}>
+                                                Appointment booked successfully. Token #{bookedToken}
+                                            </div>
+                                            <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.45rem' }} onClick={() => navigate('/queue/my-appointments')}>
+                                                View My Appointments
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {result.automationPlan?.abnormalCaseDetected && (
+                                <div style={{ border: '1px solid #ffd8e1', background: '#fff4f7', borderRadius: '9px', padding: '0.65rem 0.75rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                    <BellRing size={15} color="#c43256" style={{ marginTop: '2px' }} />
+                                    <div>
+                                        <div style={{ fontWeight: 700, color: '#a32043', fontSize: '0.83rem' }}>Abnormal Case Escalation Triggered</div>
+                                        <div style={{ fontSize: '0.78rem', color: '#7f1d38', marginTop: '2px' }}>
+                                            {result.automationPlan?.doctorNotified
+                                                ? `Doctor notifications sent to ${result.automationPlan?.doctorNotificationCount || 0} provider(s).`
+                                                : 'Case flagged for urgent clinical attention.'}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
